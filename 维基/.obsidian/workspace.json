@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "索引.md",
+                "file": "来源/llm-wiki-karpathy.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "索引"
+              "title": "llm-wiki-karpathy"
             }
           }
         ]
@@ -182,11 +182,11 @@
   },
   "active": "f5d620d304e9bff2",
   "lastOpenFiles": [
-    "主题/知识编译vs知识检索.md",
-    "主题/知识编译vs知识检索 1.md",
-    "主题/检索增强生成（RAG）.md",
     "主题/个人知识管理.md",
-    "来源/llm-wiki-karpathy.md",
-    "索引.md"
+    "主题/知识编译vs知识检索.md",
+    "主题/检索增强生成（RAG）.md",
+    "索引.md",
+    "主题/知识编译vs知识检索 1.md",
+    "来源/llm-wiki-karpathy.md"
   ]
 }
