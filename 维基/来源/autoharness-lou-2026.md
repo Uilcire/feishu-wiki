@@ -79,4 +79,4 @@ tags: [agent-harness, code-synthesis, program-search, guardrails, code-as-policy
 
 ## 原始来源
 
-`原始资料/文章/autoharness-lou-2026.pdf`（未下载 —— 通过 arXiv 网页版阅读）
+`原始资料/论文/autoharness-lou-2026.md`
