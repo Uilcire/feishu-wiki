@@ -1,5 +1,6 @@
-# Log
+# 日志
 
-## [2026-04-07] init | Wiki created
-Domain: AI agents — architectures, frameworks, techniques, papers, tools.
-Schema: CLAUDE.md written with page conventions, operations, and vault structure.
+## [2026-04-07] 初始化 | 维基创建
+领域：AI 智能体（AI Agents）—— 架构、框架、技术、论文、工具。
+架构文档：CLAUDE.md 已编写，包含页面约定、操作流程和仓库结构。
+语言：中文（专有名词保留原文）。

@@ -1,17 +1,17 @@
-# Index
+# 索引
 
-## Sources
+## 来源
 
-(No sources ingested yet)
+（尚未收录任何来源）
 
-## Entities
+## 实体
 
-(No entities yet)
+（尚无实体）
 
-## Topics
+## 主题
 
-(No topics yet)
+（尚无主题）
 
-## Synthesis
+## 综合
 
-(No synthesis pages yet)
+（尚无综合页面）

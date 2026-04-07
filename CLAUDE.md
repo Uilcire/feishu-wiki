@@ -1,252 +1,270 @@
-# AI Wiki — Schema Document
+# AI 维基 — 架构文档
 
-## What This Is
+## 这是什么
 
-A personal knowledge base focused on **AI agents** — architectures, frameworks, techniques, papers, tools, and the evolving ecosystem. Maintained by an LLM (Claude), browsed in Obsidian.
+一个专注于 **AI 智能体（AI Agents）** 的个人知识库 —— 涵盖架构、框架、技术、论文、工具及其不断演化的生态系统。由 LLM（Claude）维护，在 Obsidian 中浏览。
 
-You (Claude) are the wiki maintainer. You read sources, extract knowledge, write and update wiki pages, maintain cross-references, and keep everything consistent. The user curates sources, asks questions, and directs exploration. You do all the bookkeeping.
+你（Claude）是维基的维护者。你阅读来源材料、提取知识、撰写并更新维基页面、维护交叉引用、保持一切内容的一致性。用户负责整理来源、提问和引导探索方向。你负责所有的整理工作。
 
-## Domain
+## 语言规则
 
-Technical learning in AI agents. This includes:
-- Agent architectures (ReAct, tool-use, planning, reflection, multi-agent)
-- Frameworks and tools (LangChain, CrewAI, AutoGen, Claude Code, OpenAI Agents SDK, etc.)
-- Foundation model capabilities relevant to agents (function calling, structured output, reasoning)
-- Prompt engineering techniques for agent systems
-- Evaluation and benchmarking of agent systems
-- Production patterns (error recovery, human-in-the-loop, guardrails, observability)
-- Key people, labs, and papers in the field
+**所有维基页面内容必须使用中文撰写。** 这包括：
+- 页面标题和正文
+- 摘要、分析和综合内容
+- 日志条目
+- 索引描述
 
-## Vault Structure
+**专有名词保留原文**，格式为：`中文名（English Name）`。例如：
+- 检索增强生成（RAG）
+- 安德烈·卡帕西（Andrej Karpathy）
+- 工具调用（Tool Use）
+- 多智能体系统（Multi-Agent Systems）
+
+**文件名使用英文 kebab-case**（因为文件系统兼容性），但页面内的标题使用中文。
+
+**frontmatter 字段名保持英文**（YAML 键），值使用中文。
+
+## 领域
+
+AI 智能体（AI Agents）技术学习，包括：
+- 智能体架构（ReAct、工具调用（Tool Use）、规划（Planning）、反思（Reflection）、多智能体（Multi-Agent））
+- 框架与工具（LangChain、CrewAI、AutoGen、Claude Code、OpenAI Agents SDK 等）
+- 与智能体相关的基础模型能力（函数调用（Function Calling）、结构化输出（Structured Output）、推理（Reasoning））
+- 智能体系统的提示工程（Prompt Engineering）技术
+- 智能体系统的评估与基准测试
+- 生产环境模式（错误恢复、人机协同（Human-in-the-Loop）、护栏（Guardrails）、可观测性（Observability））
+- 该领域的关键人物、实验室和论文
+
+## 仓库结构
 
 ```
 ai-wiki/
-├── CLAUDE.md            ← this file (schema)
-├── raw/                 ← immutable source documents
+├── CLAUDE.md            ← 本文件（架构文档）
+├── raw/                 ← 不可变的来源文档
 │   ├── articles/
 │   ├── papers/
 │   ├── books/
-│   └── assets/          ← downloaded images
-├── wiki/                ← LLM-generated, LLM-maintained
-│   ├── index.md         ← navigable catalog of all wiki pages
-│   ├── entities/        ← people, orgs, frameworks, tools
-│   ├── topics/          ← concept and subject summaries
-│   ├── sources/         ← per-source summary pages
-│   └── synthesis/       ← cross-source analyses, comparisons, theses
-├── log.md               ← chronological activity log
+│   └── assets/          ← 下载的图片
+├── wiki/                ← LLM 生成并维护
+│   ├── index.md         ← 所有维基页面的可导航目录
+│   ├── entities/        ← 人物、组织、框架、工具
+│   ├── topics/          ← 概念和主题摘要
+│   ├── sources/         ← 每个来源的摘要页面
+│   └── synthesis/       ← 跨来源分析、比较、论点
+├── log.md               ← 按时间排列的活动日志
 └── .git/
 ```
 
-### Layer Rules
+### 层级规则
 
-- **raw/**: Immutable. Never modify source documents. Read only.
-- **wiki/**: LLM-owned. Claude creates, updates, and maintains all files here. User reads and browses.
-- **CLAUDE.md**: Co-evolved. User and Claude update this together as conventions emerge.
+- **raw/**：不可变。永远不要修改来源文档。仅供读取。
+- **wiki/**：LLM 所有。Claude 创建、更新和维护此处的所有文件。用户仅阅读和浏览。
+- **CLAUDE.md**：共同演化。用户和 Claude 随着约定的形成一起更新此文件。
 
-## Page Conventions
+## 页面约定
 
-### Source Pages (`wiki/sources/`)
+### 来源页面（`wiki/sources/`）
 
-One page per ingested source. Filename: kebab-case of title.
+每个已收录来源一个页面。文件名：标题的英文 kebab-case。
 
 ```markdown
 ---
 source_type: article | paper | book | video | talk | gist
-author: [name]
-date: [publication date]
-url: [if applicable]
-ingested: [date]
-tags: [topic tags]
+author: [姓名]
+date: [发布日期]
+url: [如适用]
+ingested: [收录日期]
+tags: [主题标签]
 ---
 
-# [Source Title]
+# [来源标题（原文标题）]
 
-## Key Takeaways
-- [3-7 bullet points — the essential ideas]
+## 核心要点
+- [3-7 个要点 —— 最核心的想法]
 
-## Summary
-[2-4 paragraphs capturing the source's argument and contribution]
+## 摘要
+[2-4 段，概括来源的论点和贡献]
 
-## Notable Claims
-- [Specific claims worth tracking — may confirm or contradict other sources]
+## 值得关注的主张
+- [值得追踪的具体主张 —— 可能与其他来源相互印证或矛盾]
 
-## Entities Mentioned
-- [[Entity Name]] — [brief context of how they appear in this source]
+## 提及的实体
+- [[实体名称]] —— [该实体在此来源中出现的简要背景]
 
-## Topics
-- [[Topic Name]] — [how this source contributes to the topic]
+## 相关主题
+- [[主题名称]] —— [此来源对该主题的贡献]
 
-## Raw Source
-`raw/[path to source file]`
+## 原始来源
+`raw/[来源文件路径]`
 ```
 
-### Entity Pages (`wiki/entities/`)
+### 实体页面（`wiki/entities/`）
 
-One page per person, organization, framework, tool, or model. Filename: kebab-case of name.
+每个人物、组织、框架、工具或模型一个页面。文件名：名称的英文 kebab-case。
 
 ```markdown
 ---
 type: person | org | framework | tool | model | benchmark
-aliases: [alternate names]
-updated: [date]
-source_count: [number of sources mentioning this entity]
+aliases: [别名]
+updated: [日期]
+source_count: [提及此实体的来源数量]
 ---
 
-# [Entity Name]
+# [实体名称（English Name）]
 
-## Overview
-[2-3 sentences — what this entity is and why it matters in the AI agent space]
+## 概述
+[2-3 句话 —— 这个实体是什么，为什么在 AI 智能体领域很重要]
 
-## Key Facts
-- [Factual claims with source attribution: "claim" — [[source page]]]
+## 关键事实
+- [带有来源归属的事实主张："主张内容" —— [[来源页面]]]
 
-## Connections
-- [[Related Entity]] — [relationship description]
+## 关联
+- [[相关实体]] —— [关系描述]
 
-## Sources
-- [[Source Page 1]]
-- [[Source Page 2]]
+## 来源
+- [[来源页面 1]]
+- [[来源页面 2]]
 ```
 
-### Topic Pages (`wiki/topics/`)
+### 主题页面（`wiki/topics/`）
 
-One page per concept, technique, or subject area. These are the wiki's analytical backbone.
+每个概念、技术或学科领域一个页面。这些是维基的分析支柱。
 
 ```markdown
 ---
-updated: [date]
-source_count: [number of sources touching this topic]
+updated: [日期]
+source_count: [涉及此主题的来源数量]
 maturity: stub | developing | solid | comprehensive
 ---
 
-# [Topic Name]
+# [主题名称（English Name）]
 
-## Overview
-[What this concept is, why it matters, current state of understanding]
+## 概述
+[这个概念是什么，为什么重要，当前的理解状态]
 
-## Key Ideas
-[The core ideas, synthesized across sources — not just listing what each source says]
+## 核心思想
+[跨来源综合的核心想法 —— 不只是列出每个来源说了什么]
 
-## Open Questions
-[What's unresolved, debated, or unclear across sources]
+## 待解问题
+[跨来源中未解决的、有争议的或不清楚的内容]
 
-## Contradictions
-[Where sources disagree — cite both sides]
+## 矛盾之处
+[来源之间的分歧 —— 引用双方观点]
 
-## Related Topics
-- [[Topic]] — [relationship]
+## 相关主题
+- [[主题]] —— [关系]
 
-## Sources
-- [[Source Page]] — [what this source contributes to the topic]
+## 来源
+- [[来源页面]] —— [此来源对该主题的贡献]
 ```
 
-### Synthesis Pages (`wiki/synthesis/`)
+### 综合页面（`wiki/synthesis/`）
 
-Cross-source analyses created during queries or lint passes. Comparisons, timelines, evolving theses.
+查询或审查过程中创建的跨来源分析。比较、时间线、演化中的论点。
 
 ```markdown
 ---
 type: comparison | timeline | thesis | analysis
-created: [date]
-updated: [date]
-sources_used: [list]
+created: [日期]
+updated: [日期]
+sources_used: [列表]
 ---
 
-# [Title]
+# [标题]
 
-[Content — format varies by type]
+[内容 —— 格式因类型而异]
 ```
 
-## Index (`wiki/index.md`)
+## 索引（`wiki/index.md`）
 
-The master catalog. Organized by category. Updated on every ingest.
+主目录。按类别组织。每次收录来源时更新。
 
 ```markdown
-# Index
+# 索引
 
-## Sources
-- [[source-page]] — one-line summary (author, date)
+## 来源
+- [[来源页面]] —— 一行摘要（作者，日期）
 
-## Entities
-- [[entity-page]] — type, one-line description
+## 实体
+- [[实体页面]] —— 类型，一行描述
 
-## Topics
-- [[topic-page]] — maturity level, one-line description
+## 主题
+- [[主题页面]] —— 成熟度，一行描述
 
-## Synthesis
-- [[synthesis-page]] — type, one-line description
+## 综合
+- [[综合页面]] —— 类型，一行描述
 ```
 
-## Log (`log.md`)
+## 日志（`log.md`）
 
-Append-only. One entry per operation. Parseable with grep.
+仅追加。每次操作一条记录。可用 grep 解析。
 
 ```markdown
-## [YYYY-MM-DD] ingest | Source Title
-Processed [source]. Created [N] new pages, updated [M] existing pages.
-Pages created: [[page1]], [[page2]]
-Pages updated: [[page3]], [[page4]]
+## [YYYY-MM-DD] 收录 | 来源标题
+处理了 [来源]。创建了 [N] 个新页面，更新了 [M] 个现有页面。
+新建页面：[[页面1]]、[[页面2]]
+更新页面：[[页面3]]、[[页面4]]
 
-## [YYYY-MM-DD] query | Question asked
-Question: [the question]
-Answer filed as: [[synthesis/page-name]] (or "answered in chat, not filed")
+## [YYYY-MM-DD] 查询 | 所提问题
+问题：[问题内容]
+答案归档为：[[synthesis/页面名]] （或 "在对话中回答，未归档"）
 
-## [YYYY-MM-DD] lint | Health check
-Findings: [summary of what was found and fixed]
+## [YYYY-MM-DD] 审查 | 健康检查
+发现：[发现和修复内容的摘要]
 ```
 
-## Operations
+## 操作流程
 
-### Ingest
+### 收录（Ingest）
 
-When the user provides a new source:
+当用户提供新来源时：
 
-1. **Read** the source document completely
-2. **Discuss** key takeaways with the user — what's interesting, what to emphasize
-3. **Create** a source summary page in `wiki/sources/`
-4. **Create or update** entity pages for people, tools, frameworks mentioned
-5. **Create or update** topic pages for concepts covered
-6. **Update** `wiki/index.md` with new entries
-7. **Append** to `log.md`
-8. **Commit** all changes with message: `ingest: [source title]`
+1. **阅读**完整的来源文档
+2. **讨论**与用户探讨核心要点 —— 什么有趣，应该强调什么
+3. **创建**在 `wiki/sources/` 中创建来源摘要页面
+4. **创建或更新**相关人物、工具、框架的实体页面
+5. **创建或更新**所涉及概念的主题页面
+6. **更新** `wiki/index.md` 添加新条目
+7. **追加**到 `log.md`
+8. **提交**所有更改，提交信息：`收录：[来源标题]`
 
-A single source typically touches 5-15 wiki pages. Take your time — thoroughness matters more than speed.
+单个来源通常会涉及 5-15 个维基页面。慢慢来 —— 全面性比速度更重要。
 
-### Query
+### 查询（Query）
 
-When the user asks a question:
+当用户提问时：
 
-1. **Read** `wiki/index.md` to find relevant pages
-2. **Read** the relevant wiki pages
-3. **Synthesize** an answer with citations to wiki pages (which cite sources)
-4. **Offer** to file the answer as a synthesis page if it's worth keeping
-5. If filed, **update** index and **append** to log
+1. **阅读** `wiki/index.md` 找到相关页面
+2. **阅读**相关维基页面
+3. **综合**带有维基页面引用的答案（维基页面再引用来源）
+4. **建议**如果值得保留，是否将答案归档为综合页面
+5. 如果归档，**更新**索引并**追加**到日志
 
-### Lint
+### 审查（Lint）
 
-When the user asks for a health check (or periodically suggest it):
+当用户要求健康检查时（或定期建议进行）：
 
-1. **Check** for contradictions between pages
-2. **Check** for stale claims that newer sources have superseded
-3. **Check** for orphan pages (no inbound links)
-4. **Check** for important concepts mentioned but lacking their own page
-5. **Check** for missing cross-references
-6. **Suggest** new questions to investigate or sources to look for
-7. **Fix** issues found, **append** to log
+1. **检查**页面之间的矛盾
+2. **检查**被新来源取代的过时主张
+3. **检查**孤立页面（没有入站链接）
+4. **检查**被提及但缺少自己页面的重要概念
+5. **检查**缺失的交叉引用
+6. **建议**新的研究问题或值得寻找的来源
+7. **修复**发现的问题，**追加**到日志
 
-## Conventions
+## 约定
 
-- Use `[[wikilinks]]` for all internal references (Obsidian resolves these)
-- Tags in frontmatter use kebab-case: `multi-agent-systems`, `tool-use`
-- Dates are ISO 8601: `2026-04-07`
-- When uncertain about a claim, mark it: `[unverified]` or `[contradicted by [[source]]]`
-- Prefer updating existing pages over creating new ones — consolidation over proliferation
-- Every factual claim should trace back to a source. No unsourced claims in the wiki.
+- 所有内部引用使用 `[[维基链接]]`（Obsidian 会解析这些链接）
+- frontmatter 中的标签使用英文 kebab-case：`multi-agent-systems`、`tool-use`
+- 日期使用 ISO 8601 格式：`2026-04-07`
+- 对不确定的主张进行标注：`[未验证]` 或 `[与 [[来源]] 矛盾]`
+- 优先更新现有页面而非创建新页面 —— 整合优于分散
+- 每个事实主张都应追溯到来源。维基中不允许无来源的主张。
 
-## What NOT to Do
+## 禁止事项
 
-- Never modify files in `raw/`
-- Never make claims without source attribution
-- Never delete wiki pages without user approval — mark as `[deprecated]` instead
-- Never create pages for entities/topics with only one mention — wait for a second source to confirm relevance
-- Don't over-split topics. Prefer one rich page over three thin stubs.
+- 永远不要修改 `raw/` 中的文件
+- 永远不要发表没有来源归属的主张
+- 未经用户批准不要删除维基页面 —— 改为标记 `[已废弃]`
+- 不要为只被提及一次的实体/主题创建页面 —— 等到第二个来源确认其相关性
+- 不要过度拆分主题。一个丰富的页面优于三个单薄的存根。
