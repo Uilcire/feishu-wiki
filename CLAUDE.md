@@ -2,67 +2,65 @@
 
 ## 这是什么
 
-一个专注于 **AI 智能体（AI Agents）** 的个人知识库 —— 涵盖架构、框架、技术、论文、工具及其不断演化的生态系统。由 LLM（Claude）维护，**托管在飞书知识库**，供团队协作浏览和编辑。
+一个专注于 **AI 智能体（AI Agents）** 的个人知识库 —— 涵盖架构、框架、技术、论文、工具及其不断演化的生态系统。由 LLM（Claude / Codex 等 AI Agent）维护，**完全托管在飞书知识库**。
 
-你（Claude）是维基的维护者。你阅读来源材料、提取知识、通过**飞书 API 操作维基页面**、维护交叉引用、保持一切内容的一致性。用户负责整理来源、提问和引导探索方向。你负责所有的整理工作。
+你（AI Agent）是维基的维护者。你阅读来源、提取知识、通过 `feishu_wiki.py` 读写飞书、维护交叉引用、保持一致性。用户负责整理来源、提问和引导方向。
 
-## 存储架构（重要）
+## 存储架构：本地缓存工作拷贝
 
-**飞书知识库是信源（source of truth）。本地只保留原始资料、管理文件和索引缓存。**
+**飞书是信源。本地只有缓存和代码。**
 
 ```
-本地（git 仓库）                   飞书知识库
-────────────                      ──────────
-CLAUDE.md          ← 本文件        AI Wiki/
-原始资料/          ← 不可变来源     ├── 索引
-  ├── 文章/                        ├── 来源/
-  ├── 论文/                        ├── 主题/
-  ├── 书籍/                        ├── 实体/
-  └── 附件/                        └── 综合/
-日志.md            ← 活动日志
-阅读队列.md        ← 待读队列
-.feishu-index.json ← 本地索引缓存 ⭐
-refresh-index.py   ← 索引刷新脚本
-feishu_wiki.py     ← 辅助库
+本地仓库                       飞书知识库
+────────                       ──────────
+CLAUDE.md          ← 本文件     AI Wiki/
+feishu_wiki.py     ← 唯一接口   ├── 索引
+.cache/            ← 运行时缓存  ├── 日志              ← 操作流水（带署名）
+  ├── index.json                 ├── 来源/
+  ├── 日志.md                    ├── 主题/
+  ├── state.json                 ├── 实体/
+  └── docs/*.md                  ├── 综合/
+                                 └── 原始资料/          ← 原文归档
+                                     ├── 论文/
+                                     ├── 文章/
+                                     ├── 书籍/
+                                     └── wiki/
 ```
 
-### 层级规则
+### 核心模型：checkout → local edit → checkin
 
-- **原始资料/**：不可变。永远不要修改来源文档。仅供读取。
-- **飞书知识库**：所有维基页面的真实存储位置。Claude 通过 `feishu_wiki.py` 和 `lark-cli` 进行所有读写。
-- **`.feishu-index.json`**：本地缓存的索引文件。**读之前必须先刷新**，写操作后自动更新。
-- **日志.md / 阅读队列.md**：本地个人文件，追加式。
-- **CLAUDE.md**：共同演化。用户和 Claude 随着约定的形成一起更新此文件。
-
-### 索引文件（`.feishu-index.json`）
-
-这是 Claude 在所有操作中第一个接触的文件。结构：
-
-```json
-{
-  "last_refreshed": "2026-04-10T16:30:04+08:00",
-  "space_id": "...",
-  "root": { "node_token": "...", "obj_token": "...", "url": "..." },
-  "categories": {
-    "来源": { "node_token": "...", "obj_token": "..." },
-    "主题": { ... },
-    "实体": { ... },
-    "综合": { ... }
-  },
-  "pages": {
-    "页面标题": {
-      "category": "主题",
-      "parent_token": "...",
-      "node_token": "...",
-      "obj_token": "...",
-      "url": "...",
-      "updated": "...",
-      "summary": "一段自动提取的摘要"
-    },
-    ...
-  }
-}
 ```
+启动时                     会话中                    结束时
+──────                     ─────                     ─────
+飞书 ──download──> .cache   读 = .cache (6ms)        dirty 页面
+                            写 = .cache + dirty      ──upload──> 飞书
+                            (零延迟)                 (atexit 自动)
+```
+
+- **启动**（首次 `fw.*` 调用时自动触发）：`_build_cache()` 并发拉取全量页面和日志到 `.cache/`
+- **读**：`fw.find` / `fw.fetch` / `fw.list_pages` 全部从本地缓存读取（毫秒级）
+- **写**：
+  - `fw.create`：立即调飞书（需要 `obj_token`），同时写本地缓存
+  - `fw.update` / `fw.append_log`：只改本地缓存，标记 dirty
+- **同步**：Python 进程退出时 `atexit` 自动触发 `fw.sync()`，或手动调用
+- **冲突检测**：sync 前重新拉取每个 dirty 页面的 `obj_edit_time`，若飞书端被改过（用户手动编辑）则报错中止，不覆盖
+
+## ⚠️ 用户契约（极其重要）
+
+**用户绝对不能直接编辑飞书 UI 里的维基页面**。
+
+理由：Agent 的缓存工作拷贝模型依赖 "启动时拉取 → 会话中本地修改 → 退出时覆盖上传" 的流程。如果用户在飞书 UI 里直接修改了某个页面，而 Agent 同时在本地缓存上做了修改：
+- 最好的情况：冲突检测触发，sync 报错中止，要求手动处理
+- 最坏的情况：用户的修改被 Agent 的 overwrite 覆盖丢失
+
+**允许的用户操作**：
+- ✅ 在飞书里**浏览**维基页面
+- ✅ 在飞书里**评论**（评论不影响 obj_edit_time）
+- ❌ **不要**在飞书 UI 里编辑正文
+- ❌ **不要**在飞书 UI 里添加图片/表格/视频
+- ❌ **不要**移动或重命名节点
+
+所有修改都让 Agent 代劳。如果非要直接改，请先让 Agent `fw.sync()` 确认本地无 dirty，改完后让 Agent `fw.refresh()` 重建缓存。
 
 ## 语言规则
 
@@ -70,107 +68,100 @@ feishu_wiki.py     ← 辅助库
 - 页面标题和正文
 - 摘要、分析和综合内容
 - 日志条目
-- 索引描述
 
 **专有名词保留原文**，格式为：`中文名（English Name）`。例如：
 - 检索增强生成（RAG）
 - 安德烈·卡帕西（Andrej Karpathy）
 - 工具调用（Tool Use）
-- 多智能体系统（Multi-Agent Systems）
 
 **页面标题使用中文**。专有名词标题可保留原文（如 `Claude Code`、`MemPalace`）。
 
 ## 领域
 
-AI 智能体（AI Agents）技术学习，包括：
-- 智能体架构（ReAct、工具调用（Tool Use）、规划（Planning）、反思（Reflection）、多智能体（Multi-Agent））
+AI 智能体（AI Agents）技术学习：
+- 智能体架构（ReAct、工具调用、规划、反思、多智能体）
 - 框架与工具（LangChain、CrewAI、AutoGen、Claude Code、OpenAI Agents SDK 等）
-- 与智能体相关的基础模型能力（函数调用（Function Calling）、结构化输出（Structured Output）、推理（Reasoning））
-- 智能体系统的提示工程（Prompt Engineering）技术
-- 智能体系统的评估与基准测试
-- 生产环境模式（错误恢复、人机协同（Human-in-the-Loop）、护栏（Guardrails）、可观测性（Observability））
-- 该领域的关键人物、实验室和论文
+- 基础模型能力（函数调用、结构化输出、推理）
+- 提示工程技术
+- 评估与基准测试
+- 生产模式（错误恢复、人机协同、护栏、可观测性）
+- 关键人物、实验室和论文
 
 ## 核心工作流
 
-### 黑盒模型
-
-**用户只跟 AI Agent 对话**。用户不直接编辑飞书 UI、不直接跑 `git`、不直接调 `lark-cli`。所有维基操作、所有 git 操作都由 Agent 通过 `feishu_wiki.py` 代劳。
-
-该设计支持多 Agent 协作（Claude Code、Codex、以及任何能跑 Python 的 Agent），因为所有状态变更都走同一个辅助库，保证日志、索引、git 历史一致。
-
 ### 黄金法则
 
-1. **只用辅助库**：所有飞书和 git 操作走 `feishu_wiki.py`，不要直接调 `lark-cli` 或 `git`
-2. **自动就绪**：`fw.*` 每次读写都会自动 `git pull --ff-only` + `refresh-index`，不需要手动调 `fw.refresh()`
-3. **写操作副作用**：`create` / `update` / `save_source_from_text` 会自动追加日志、更新索引、**标记文件待提交**（但不自动 commit）
-4. **批次末尾 commit**：一组相关操作完成后调用 `fw.commit("消息")`，统一 stage、commit、push
-5. **本地索引 = 缓存**：不要直接编辑 `.feishu-index.json`，它由脚本维护（但会被 git 追踪，作为共享引导状态）
-6. **自动署名**：每次 `create` / `update` / `append_log` 都会自动记录当前 `lark-cli` 认证用户的 `name` + `open_id`，写入日志和索引的 `created_by` / `updated_by` 字段。多 Agent 协作时可追溯每一次变更的责任人。
+1. **只用 `feishu_wiki.py`**：不要直接调 `lark-cli`，不要手动改 `.cache/`
+2. **创建前深读**：见下方「收录」流程的质量门槛
+3. **写操作会自动 dirty**：无需手动管理状态，session 结束 `atexit` 自动 sync
+4. **冲突 = 用户违规**：如果 sync 报冲突，说明有人动了飞书 UI。按错误提示处理
+5. **自动署名**：每次 `update` 会把页面顶部的 `👤 attribution callout` 更新为当前用户 + 当前日期
 
 ### 辅助库 API（`feishu_wiki.py`）
 
 ```python
 import feishu_wiki as fw
 
-# === 读（自动 pull + refresh，无需手动）===
+# === 读（全部从 .cache/，零 API）===
 page = fw.find("智能体上下文与记忆管理")          # 精确或模糊匹配
-topics = fw.list_pages(category="主题")             # 列出某分类所有页面
-fw.exists("检索增强生成（RAG）")                    # 存在性检查
+topics = fw.list_pages(category="主题")             # 按分类列出
+fw.exists("检索增强生成（RAG）")
 content = fw.fetch(page)                            # 或 fw.fetch("标题")
 
-# === 写（自动记日志 + 标记待提交）===
+# === 写 ===
 fw.create(
-    category="主题",                                 # 来源/主题/实体/综合
+    category="主题",                                # 来源/主题/实体/综合/原始资料/论文 等
     title="新主题",
-    content="## 概述\n\n...",
+    content="## 概述\n\n...",                      # 自动插入 attribution callout
 )
-fw.update("智能体上下文与记忆管理", "追加的内容", mode="append")
-fw.update("页面名", "完整新内容", mode="overwrite")  # 慎用
+fw.update("智能体上下文与记忆管理", "追加内容", mode="append")
+fw.update("页面", "全部新内容", mode="overwrite")   # 慎用
 
-# === 维基链接解析：[[页面名]] → <mention-doc> ===
-content_with_mentions = fw.resolve_wikilinks("参考 [[Claude Code]]")
+# === 日志 ===
+fw.append_log("动作 | 标题", details="详情")
 
-# === 源文件（Agent 用 WebFetch 拿到文本后）===
-fw.save_source_from_text(
-    text=fetched_text,
-    category="文章",                                 # 原始资料/ 下的子目录
-    title="某文章标题",
-    metadata={"url": "...", "author": "...", "date": "2026-04-10"},
-)
+# === 维基链接解析（[[xxx]] → <mention-doc>）===
+content = fw.resolve_wikilinks("参考 [[Claude Code]]")
 
-# === 阅读队列 ===
-fw.queue_add("文章标题", url="https://...", tags=["agent", "memory"])
+# === 状态 / 同步 ===
+fw.status()          # 看 dirty 列表和最后 sync 时间
+fw.sync()            # 显式同步（atexit 会自动调用）
+fw.refresh()         # 强制重建缓存（先 sync 再全量拉取）
 
-# === 批次提交（每次收录/查询归档/审查结束时）===
-fw.pending()                                        # 查看待提交变更
-fw.commit("收录：某来源标题")                       # stage + commit + push
-
-# === 显式刷新（基本不需要，除非怀疑状态脏了）===
-fw.refresh()
+# === 当前用户 ===
+fw.current_user()    # {'name': '刘宸希', 'open_id': 'ou_...'}
 ```
 
 ## 页面结构约定
 
-飞书文档没有 YAML frontmatter。元数据（作者、日期、成熟度、标签）应当写在页面开头的**概览区**，使用 callout 块或表格。
+### 每个页面顶部的 attribution callout（由 `fw.*` 自动维护）
+
+```markdown
+<callout emoji="👤" background-color="light-gray-background">
+**创建**：刘宸希（2026-04-07） · **最后更新**：张三（2026-04-10）
+</callout>
+```
+
+不要手动写这个 callout，`fw.create` / `fw.update` 会自动插入/更新。详细历史见 飞书的 `日志` docx。
 
 ### 来源页面结构
 
 ```markdown
 <callout emoji="📌" background-color="light-blue">
-**作者**：[姓名]  |  **日期**：YYYY-MM-DD  |  **类型**：paper/article/gist
-**URL**：[原文链接]  |  **收录**：YYYY-MM-DD
-**标签**：tag1, tag2
+**原文**（paper/article/gist/wiki）：[URL](URL)
+**作者**：xxx  |  **日期**：YYYY-MM-DD
 </callout>
 
+<callout emoji="👤">自动 attribution</callout>
+
 ## 核心要点
-- [3-7 个要点 —— 最核心的想法]
+- [3-7 个要点]
 
 ## 摘要
-[2-4 段，概括来源的论点和贡献]
+[2-4 段]
 
 ## 值得关注的主张
-- [值得追踪的具体主张]
+- [具体主张]
 
 ## 提及的实体
 - [[实体名称]] —— [背景]
@@ -178,78 +169,27 @@ fw.refresh()
 ## 相关主题
 - [[主题名称]] —— [贡献]
 
-## 原始来源
-`原始资料/[文件路径]`
+## 原文归档
+[[AutoHarness（原文）]] —— 在 `原始资料/论文/` 下
 ```
 
-### 实体页面结构
+### 原始资料页面结构（只用作归档，不要编辑）
 
 ```markdown
-<callout emoji="🏷️" background-color="light-purple">
-**类型**：person/org/framework/tool/model/benchmark
-**别名**：[别名列表]  |  **来源数**：N
+<callout emoji="📌" background-color="light-blue">
+**原文**（kind）：[URL](URL)
+**作者**：xxx  |  **日期**：YYYY-MM-DD
+⚠️ 此页为原文归档，请勿修改
 </callout>
 
-## 概述
-[2-3 句话]
-
-## 关键事实
-- [事实] —— [[来源页面]]
-
-## 关联
-- [[相关实体]] —— [关系]
-
-## 来源
-- [[来源页面 1]]
-- [[来源页面 2]]
+[原始全文 ...]
 ```
 
-### 主题页面结构
+### 实体 / 主题 / 综合页面
 
-```markdown
-<callout emoji="💡" background-color="light-green">
-**成熟度**：stub / developing / solid / comprehensive
-**来源数**：N  |  **最后更新**：YYYY-MM-DD
-</callout>
-
-## 概述
-[这个概念是什么，为什么重要]
-
-## 核心思想
-[跨来源综合的核心想法]
-
-## 待解问题
-[未解决的问题]
-
-## 矛盾之处
-[来源之间的分歧]
-
-## 相关主题
-- [[主题]] —— [关系]
-
-## 来源
-- [[来源页面]] —— [贡献]
-```
-
-### 综合页面结构
-
-```markdown
-<callout emoji="🔀" background-color="light-orange">
-**类型**：comparison / timeline / thesis / analysis
-**创建**：YYYY-MM-DD  |  **更新**：YYYY-MM-DD
-</callout>
-
-[内容 —— 格式因类型而异]
-```
+同原架构，加上自动 attribution callout。参考已有页面的结构。
 
 ## 操作流程
-
-### 添加阅读（Queue）
-
-当用户想保存一个稍后阅读的来源时：
-
-1. **追加**到 `阅读队列.md` 的「待读」分区
-2. 记录标题、URL、添加日期、用户提供的标签和备注
 
 ### 收录（Ingest）
 
@@ -260,78 +200,69 @@ fw.refresh()
 > - **跟用户对话验证理解**：至少讨论 1-2 个核心主张、交叉比对已有主题，让用户确认你抓到了关键
 > - **只提取高置信度的主张**。不确定的东西标 `[未验证]`，或者干脆不写
 > - 宁可延后收录、宁可只写一个精炼的来源页面，**也不要为了"完成任务"批量生成低质量实体/主题存根**
->
-> 如果原文很长或很专业，先用查询流程调研背景，理解上下文后再收录。
 
-当用户提供新来源（URL、文件、或 paste 的文本）时：
+当用户提供新来源时：
 
-1. **获取原文**：如果是 URL，用 Agent 的 WebFetch 拿到文本；如果用户直接 paste 就直接用
-2. **`fw.save_source_from_text(...)`** 把文本保存到 `原始资料/<category>/`（不可变来源）
-3. **深度阅读 + 讨论**：按上面的质量门槛与用户探讨核心要点，确认理解无误
-4. **搜索相关页面**：`fw.find("某主题")` 检查是否已有相关实体/主题
-5. **`fw.create("来源", ...)` 创建来源页面**
-6. **`fw.create()` / `fw.update()`** 相关的实体和主题页面（优先更新现有页面）
-7. **更新「索引」页面** 的导航结构
-8. **`fw.queue_add()` 迁移阅读队列条目**：从「待读」移到「已收录」（如来自队列）
-9. **`fw.commit("收录：[来源标题]")`** —— 原子提交本批次所有变更
+1. **获取原文**：WebFetch / 用户 paste
+2. **深度阅读 + 讨论**：按上面的质量门槛与用户验证理解
+3. **存归档**：`fw.create("原始资料/论文", "标题（原文）", 原文内容)` —— 原文作为不可变归档
+4. **搜索相关页面**：`fw.find("某主题")` 优先更新现有
+5. **创建来源页面**：`fw.create("来源", "标题", 笔记)` —— 顶部 callout 带原文 URL，并 `[[原始资料 xxx（原文）]]` 链接到归档
+6. **更新相关主题/实体**：`fw.update(...)`
+7. **Python 进程结束时自动 sync**（或手动 `fw.sync()`）
 
-单个来源通常涉及 5-15 个飞书页面。慢慢来 —— 全面性比速度更重要。所有日志、索引更新由 `fw.*` 自动处理，**不要手动 append_log 或编辑索引**。
+单个来源通常涉及 3-10 个飞书页面的创建/更新。慢慢来 —— 全面性比速度更重要。
 
 ### 查询（Query）
 
-当用户提问时：
-
-1. **`fw.list_pages()` / `fw.find()`** 定位相关页面（优先用 summary 字段判断相关性）
-2. **`fw.fetch()` 逐个拉取正文** 进行深度阅读
-3. **综合** 带有页面引用的答案
-4. **建议** 是否将答案归档为综合页面
-5. 如果归档：`fw.create("综合", ...)` + `fw.commit("查询归档：[问题]")`
+1. `fw.list_pages()` / `fw.find()` 定位相关页面
+2. `fw.fetch()` 拉取正文（从本地缓存，毫秒级）
+3. 综合答案，带 `[[页面链接]]` 引用
+4. 可选：归档为综合页面 `fw.create("综合", ...)`
 
 ### 审查（Lint）
 
-当用户要求健康检查时：
-
-1. **列出所有页面**：`fw.list_pages()`
-2. **按需 fetch 内容** 检查：
-   - 页面之间的矛盾
-   - 过时主张
-   - 孤立页面（没有入站链接）
-   - 被提及但缺少自己页面的重要概念
-   - 缺失的交叉引用
-3. **修复**发现的问题：`fw.update()`
-4. **`fw.commit("审查：[描述]")`** 提交批次
+1. `fw.list_pages()` 全量
+2. 按需 `fw.fetch()` 抽读
+3. 找矛盾、孤立页面、断链
+4. `fw.update()` 修复
+5. atexit 自动 sync
 
 ## 约定
 
-- **维基链接格式**：在 markdown 内容中写 `[[页面名]]`，调用 `fw.resolve_wikilinks(content)` 把它们转成 `<mention-doc>` 标签后再提交给 API。飞书会自动建立双向链接关系。
-- **首次出现规则**：页面中出现已有维基页面对应的专有名词时，首次出现必须用 `[[维基链接]]` 链接。同一页面内同一术语后续可以是纯文本。
-- **写入默认用 `append` 模式**：避免覆盖其他用户添加的内容、图片、评论。只在完全重建页面时用 `overwrite`。
-- **日期使用 ISO 8601 格式**：`2026-04-07`
-- **不确定的主张标注**：`[未验证]` 或 `[与 [[来源]] 矛盾]`
-- **优先更新现有页面而非创建新页面** —— 整合优于分散
-- **每个事实主张都应追溯到来源**。维基中不允许无来源的主张。
+- **维基链接**：markdown 里写 `[[页面名]]`，调 `fw.resolve_wikilinks(content)` 转成 `<mention-doc>` 后再 `fw.update` 提交
+- **首次出现规则**：页面里出现已有维基页面对应的专有名词时，首次出现必须用 `[[维基链接]]`
+- **写入默认 `append`**：避免覆盖。只在完全重建页面时用 `overwrite`
+- **日期 ISO 8601**：`2026-04-07`
+- **不确定主张标注**：`[未验证]` 或 `[与 [[来源]] 矛盾]`
+- **优先更新现有页面** —— 整合优于分散
+- **每个事实主张都应追溯到来源** —— 无来源主张不允许
 
 ## 禁止事项
 
-- 永远不要修改 `原始资料/` 中的文件
-- 永远不要发表没有来源归属的主张
-- 未经用户批准不要删除维基页面 —— 改为在页面开头标记 `[已废弃]` 并说明原因
-- 不要为只被提及一次的实体/主题创建页面 —— 等到第二个来源确认其相关性
-- 不要过度拆分主题。一个丰富的页面优于三个单薄的存根。
-- **不要绕过 `feishu_wiki.py`** —— 不要直接调 `lark-cli`、不要直接跑 `git add/commit/push`。所有操作走 `fw.*`
-- **不要直接编辑 `.feishu-index.json`** —— 它由 `refresh-index.py` 维护
-- **不要在本地保留维基页面的 markdown 文件** —— 飞书是唯一信源
-- **不要遗漏 `fw.commit(...)`** —— 批次操作结束时必须 commit，否则其他 Agent 看不到变更
+- **永远不要让用户直接编辑飞书 UI**（见上方用户契约）
+- **永远不要修改 `原始资料/*` 页面**（原文归档不可变）
+- **永远不要发表没有来源归属的主张**
+- **未经用户批准不要删除维基页面** —— 改为在页面开头标记 `[已废弃]`
+- **不要为只被提及一次的实体/主题创建页面** —— 等第二个来源确认
+- **不要过度拆分主题** —— 一个丰富的页面优于三个单薄的存根
+- **不要绕过 `feishu_wiki.py`** —— 不要直接调 `lark-cli`、不要手动编辑 `.cache/`
+- **不要提交 `.cache/` 到 git** —— 它是本地运行时状态
 
-## 工具命令
+## 故障处理
 
-```bash
-# 刷新本地索引（读之前运行）
-python3 refresh-index.py
+### `fw.sync()` 报冲突
 
-# 带详细输出
-python3 refresh-index.py --verbose
+说明有人动了飞书 UI。步骤：
+1. 打开飞书看看冲突页面当前状态
+2. 决定：保留飞书版本 or 保留本地 dirty 版本
+3. 保留飞书版本：删除 `.cache/docs/<title>.md` 对应条目，从 `state.json` 的 `dirty_pages` 移除，然后 `fw.refresh()`
+4. 保留本地版本：手动把飞书的新内容合并到本地缓存，再 `fw.sync()`
 
-# 跳过摘要提取（只更新元数据，更快）
-python3 refresh-index.py --no-summary
-```
+### 缓存疑似损坏
+
+`rm -rf .cache && python3 -c "import feishu_wiki as fw; fw.status()"` —— 下次读操作会触发重建。
+
+### atexit sync 失败
+
+Python 进程意外退出时可能错过 sync。下次启动时 dirty 标记仍在 `state.json`，手动调 `fw.sync()` 即可。

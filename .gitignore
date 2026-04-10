@@ -1,11 +1,7 @@
-# Obsidian
-.obsidian/workspace.json
-.obsidian/workspace-mobile.json
-.trash/
 .DS_Store
 
-# 旧的 sync 脚本状态文件（已废弃）
-.feishu-sync.json
+# 本地缓存（飞书为信源，缓存由 feishu_wiki.py 自动管理）
+.cache/
 
 # Python
 __pycache__/
