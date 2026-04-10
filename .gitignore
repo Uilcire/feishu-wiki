@@ -3,3 +3,10 @@
 .obsidian/workspace-mobile.json
 .trash/
 .DS_Store
+
+# 旧的 sync 脚本状态文件（已废弃）
+.feishu-sync.json
+
+# Python
+__pycache__/
+*.pyc
