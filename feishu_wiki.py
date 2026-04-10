@@ -52,6 +52,7 @@ CATEGORIES = ["来源", "主题", "实体", "综合"]
 _READY = False
 _PENDING_FILES: set = set()  # 待提交的文件路径
 _PENDING_SUMMARY: list = []  # 本次会话的变更概要（用于 commit message 参考）
+_CURRENT_USER: Optional[dict] = None  # {"name": "...", "open_id": "..."}
 
 
 # === 底层：lark-cli 和 git ===
@@ -81,6 +82,35 @@ def _run_git(args: list, check: bool = True) -> subprocess.CompletedProcess:
         text=True,
         check=check,
     )
+
+
+def _current_user() -> dict:
+    """获取当前 lark-cli 认证的用户 {name, open_id}。模块级缓存。"""
+    global _CURRENT_USER
+    if _CURRENT_USER is not None:
+        return _CURRENT_USER
+
+    try:
+        result = subprocess.run(
+            ["lark-cli", "auth", "status"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        data = json.loads(result.stdout)
+        _CURRENT_USER = {
+            "name": data.get("userName") or "unknown",
+            "open_id": data.get("userOpenId") or "",
+        }
+    except Exception:
+        _CURRENT_USER = {"name": "unknown", "open_id": ""}
+
+    return _CURRENT_USER
+
+
+def current_user() -> dict:
+    """对外暴露：返回当前用户 {name, open_id}。"""
+    return _current_user()
 
 
 # === 就绪检查（自动 pull + refresh）===
@@ -257,6 +287,8 @@ def create(category: str, title: str, content: str) -> dict:
     data = result.get("data", {})
     doc_id = data.get("doc_id")
     doc_url = data.get("doc_url", "")
+    now = datetime.now().astimezone().isoformat(timespec="seconds")
+    user = _current_user()
 
     new_page = {
         "category": category,
@@ -264,8 +296,11 @@ def create(category: str, title: str, content: str) -> dict:
         "node_token": doc_url.split("/")[-1] if "/wiki/" in doc_url else "",
         "obj_token": doc_id,
         "url": doc_url,
-        "updated": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "updated": now,
         "summary": _extract_summary_fallback(content),
+        "created_by": user,
+        "created_at": now,
+        "updated_by": user,
     }
 
     index.setdefault("pages", {})[title] = new_page
@@ -325,6 +360,7 @@ def update(
             index["pages"][title]["updated"] = (
                 datetime.now().astimezone().isoformat(timespec="seconds")
             )
+            index["pages"][title]["updated_by"] = _current_user()
             if new_title and new_title != title:
                 index["pages"][new_title] = index["pages"].pop(title)
             _save_index(index)
@@ -338,9 +374,11 @@ def update(
 
 
 def append_log(summary: str, details: Optional[str] = None) -> None:
-    """追加一条日志到本地 日志.md。自动标记 commit 待提交。"""
+    """追加一条日志到本地 日志.md。自动标记 commit 待提交，并自动署名。"""
     today = datetime.now().strftime("%Y-%m-%d")
-    entry = f"\n## [{today}] {summary}\n"
+    user = _current_user()
+    by_line = f" · by {user['name']}" if user.get("name") else ""
+    entry = f"\n## [{today}] {summary}{by_line}\n"
     if details:
         entry += f"{details}\n"
 

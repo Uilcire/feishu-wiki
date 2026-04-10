@@ -407,38 +407,39 @@ def build_index():
                 "updated": child.get("obj_edit_time", ""),
             }
 
-    # 5. 为每个页面提取摘要（增量：只对未缓存或已变化的页面拉正文）
-    print(f"\n提取摘要...")
-    cached = {}
+    # 5. 合并保留由 feishu_wiki.py 维护的字段：
+    #      - attribution: created_by / created_at / updated_by
+    #      - summary: 页面未变化时复用
+    #    这些字段飞书本身不存，所以 refresh 必须从旧索引里继承，不覆盖。
     existing_index = load_index()
+    cached = {}
     if existing_index:
         for title, info in existing_index.get("pages", {}).items():
-            if "summary" in info:
-                cached[title] = {
-                    "summary": info["summary"],
-                    "updated": info.get("updated", ""),
-                }
+            cached[title] = info
 
+    PRESERVE_FIELDS = ("created_by", "created_at", "updated_by")
+    for title, page_info in index["pages"].items():
+        old = cached.get(title, {})
+        for field in PRESERVE_FIELDS:
+            if field in old:
+                page_info[field] = old[field]
+        # 若页面未变化，顺带复用 summary
+        if old.get("summary") and old.get("updated") == page_info.get("updated"):
+            page_info["summary"] = old["summary"]
+
+    # 6. 为未命中缓存的页面拉取正文、提取摘要
+    print(f"\n提取摘要...")
     skip_summaries = "--no-summary" in sys.argv
     fetched = 0
     reused = 0
     for title, page_info in index["pages"].items():
-        if skip_summaries:
-            continue
-
-        # 增量：如果已有 cached summary 且 updated 时间未变，复用
-        cached_info = cached.get(title)
-        if (
-            cached_info
-            and cached_info.get("updated") == page_info.get("updated")
-            and cached_info.get("summary")
-        ):
-            page_info["summary"] = cached_info["summary"]
+        if page_info.get("summary"):
             reused += 1
             log(f"  ✓ 复用: {title}")
             continue
+        if skip_summaries:
+            continue
 
-        # 拉取正文并提取摘要
         obj_token = page_info.get("obj_token")
         if not obj_token:
             continue
