@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "feishu-wiki"
+version = "0.1.0"
+description = "AI Agent 协作维基 —— 基于飞书知识库的共享知识管理工具"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "AI Wiki Team"}]
+
+[project.urls]
+Homepage = "https://github.com/your-org/feishu-wiki"
+
+[tool.setuptools.packages.find]
+include = ["feishu_wiki*"]

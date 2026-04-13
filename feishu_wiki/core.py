@@ -1,29 +1,11 @@
 """
-飞书维基辅助库 —— AI Agent 在"飞书为主 + 本地缓存"架构下操作维基的唯一接口。
+feishu_wiki.core —— 索引、缓存、读写
 
-架构模型：checkout → local edit → checkin
-  - 启动时：_build_cache() 并发拉取全量页面 + 日志到 .cache/
-  - 读：全部走 .cache/（零飞书 API，毫秒级）
-  - 写：create 立即调飞书（要 obj_token）；update / append_log 只改本地缓存 + 标 dirty
-  - 同步：atexit 自动调 sync()，先用 obj_edit_time 做乐观并发检测，再批量上传
-  - 冲突：如果飞书端 obj_edit_time 变了（用户手动编辑），报错不覆盖，人工处理
-
-核心契约：
-  1. 用户只跟 Agent 对话，不直接编辑飞书 UI（违反会触发冲突保护）
-  2. 读操作零延迟（从本地缓存）
-  3. 写操作延迟批量（session 结束时一次性 sync）
-  4. attribution 写在每个页面顶部的 callout 里
-  5. 详细变更历史在 日志 docx 里（每条 `· by 刘宸希`）
-
-典型用法：
-    import feishu_wiki as fw
-    page = fw.find("智能体上下文与记忆管理")
-    content = fw.fetch(page)
-    fw.update(page, "追加的段落", mode="append")
-    # Python 进程退出时自动 sync
-
-    # 或显式：
-    fw.sync()
+架构模型：lazy cache + on-demand fetch
+  - 启动时：只拉索引（页面列表 + summary + edit_time）和日志
+  - 读：先查索引定位，按需拉取单个页面（本地缓存 + TTL）
+  - 写：acquire lock → fetch fresh → modify → upload → release lock
+  - 索引 TTL = 60s，过期自动刷新
 """
 
 import atexit
@@ -32,6 +14,7 @@ import re
 import subprocess
 import sys
 import threading
+import time as _time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -45,17 +28,20 @@ STATE_FILE = CACHE_DIR / "state.json"
 LOG_FILE = CACHE_DIR / "日志.md"
 DOCS_DIR = CACHE_DIR / "docs"
 
-# 顶层容器节点（持有其他节点）
-TOP_CONTAINERS = ["来源", "主题", "实体", "综合", "原始资料"]
-# 原始资料下的子容器
-RAW_SUBS = ["论文", "文章", "书籍", "wiki"]
-# 特殊 docx（不是 container，有独立处理逻辑 —— 只有日志因为是日志目的地）
-SPECIAL_DOCS = ["日志"]
+# 默认 AI Wiki 知识空间
+DEFAULT_SPACE_ID = "7612481259192781765"
 
+# 顶层容器节点
+TOP_CONTAINERS = ["来源", "主题", "实体", "综合", "原始资料"]
+RAW_SUBS = ["论文", "文章", "书籍", "wiki"]
+SPECIAL_DOCS = ["日志"]
 ALL_CATEGORIES = TOP_CONTAINERS + [f"原始资料/{s}" for s in RAW_SUBS]
 
-# 并发度（飞书 API 有频控，4 以内稳妥）
+# 并发度（飞书 API 频控，4 以内稳妥）
 MAX_WORKERS = 4
+
+# 索引 TTL（秒）
+INDEX_TTL = 60
 
 # === 会话级状态 ===
 
@@ -63,6 +49,7 @@ _CACHE_READY = False
 _CURRENT_USER: Optional[dict] = None
 _SYNC_LOCK = threading.Lock()
 _ATEXIT_REGISTERED = False
+_INDEX_LAST_REFRESH: float = 0  # time.time() of last index refresh
 
 
 # === 底层：lark-cli 调用 ===
@@ -92,7 +79,6 @@ def _current_user() -> dict:
     global _CURRENT_USER
     if _CURRENT_USER is not None:
         return _CURRENT_USER
-
     try:
         result = subprocess.run(
             ["lark-cli", "auth", "status"],
@@ -105,7 +91,6 @@ def _current_user() -> dict:
         }
     except Exception:
         _CURRENT_USER = {"name": "unknown", "open_id": ""}
-
     return _CURRENT_USER
 
 
@@ -118,7 +103,6 @@ def current_user() -> dict:
 
 
 def _safe_filename(title: str) -> str:
-    """把页面标题转成安全的文件名（保留中文）。"""
     return re.sub(r'[\\/:*?"<>|]', "_", title).strip()
 
 
@@ -130,7 +114,7 @@ def _doc_cache_path(title: str) -> Path:
 
 
 def _auto_discover_space_and_root() -> Optional[dict]:
-    """首次初始化时自动发现 AI Wiki 知识空间和根节点。"""
+    """自动发现 AI Wiki 知识空间和根节点。"""
     r = _run_lark(
         ["wiki", "spaces", "list", "--as", "user",
          "--params", json.dumps({"page_size": 50})]
@@ -164,7 +148,6 @@ def _auto_discover_space_and_root() -> Optional[dict]:
                 "root_node_token": n.get("node_token"),
                 "root_obj_token": n.get("obj_token"),
             }
-    # fallback: 第一个 docx
     for n in roots:
         if n.get("obj_type") == "docx":
             return {
@@ -200,7 +183,6 @@ def _list_children(node_token: str, space_id: str) -> list:
 
 def _fetch_doc_markdown(obj_token: str, retries: int = 3) -> str:
     """拉取文档正文（Lark-flavored Markdown）。带限流重试。"""
-    import time
     for attempt in range(retries):
         try:
             r = _run_lark(
@@ -213,67 +195,56 @@ def _fetch_doc_markdown(obj_token: str, retries: int = 3) -> str:
             msg = str(e)
             if "frequency limit" in msg or "rate" in msg.lower():
                 if attempt < retries - 1:
-                    time.sleep(1.5 * (attempt + 1))
+                    _time.sleep(1.5 * (attempt + 1))
                     continue
             raise
     return ""
 
 
-# === 缓存构建 ===
+# === 索引构建（轻量：只拉页面列表 + metadata，不拉正文）===
 
 
-def _build_cache() -> None:
-    """并发拉取全量飞书数据到 .cache/。"""
-    print("[fw] 构建本地缓存...", file=sys.stderr, flush=True)
+def _build_index() -> dict:
+    """扫描飞书知识库结构，构建索引（不拉页面正文）。"""
+    print("[fw] 构建索引...", file=sys.stderr, flush=True)
 
-    # 1. 加载旧 index（如存在）用于 bootstrap root
-    existing = {}
-    if INDEX_FILE.exists():
+    # 1. 确定 space_id 和 root
+    space_id = None
+    root_node_token = None
+    root_obj_token = None
+
+    config = Path(".feishu-config.json")
+    if config.exists():
         try:
-            existing = json.loads(INDEX_FILE.read_text(encoding="utf-8"))
+            cfg = json.loads(config.read_text(encoding="utf-8"))
+            space_id = cfg.get("space_id")
+            root_node_token = cfg.get("root_node_token")
+            root_obj_token = cfg.get("root_obj_token")
         except Exception:
-            existing = {}
+            pass
 
-    space_id = existing.get("space_id")
-    root = existing.get("root") or {}
-    root_node_token = root.get("node_token")
-    root_obj_token = root.get("obj_token")
+    if not space_id:
+        space_id = DEFAULT_SPACE_ID
 
-    if not space_id or not root_node_token:
-        # 从 .feishu-config.json 读 bootstrap 配置（git 追踪的一次性配置）
-        config = Path(".feishu-config.json")
-        if config.exists():
-            try:
-                cfg = json.loads(config.read_text(encoding="utf-8"))
-                space_id = cfg.get("space_id")
-                root_node_token = cfg.get("root_node_token")
-                root_obj_token = cfg.get("root_obj_token")
-            except Exception:
-                pass
-
-    if not space_id or not root_node_token:
+    if not root_node_token:
         discovered = _auto_discover_space_and_root()
         if not discovered:
-            raise RuntimeError(
-                "无法发现 AI Wiki 知识空间。请创建 .feishu-config.json 手动指定 space_id 和 root_node_token"
-            )
+            raise RuntimeError("无法发现 AI Wiki 知识空间。请创建 .feishu-config.json")
         space_id = discovered["space_id"]
         root_node_token = discovered["root_node_token"]
         root_obj_token = discovered.get("root_obj_token")
 
-    # 2. 扫描根节点下的顶层子节点
+    # 2. 扫描根节点
     top_children = _list_children(root_node_token, space_id)
 
-    containers = {}  # category path → {node_token, obj_token, parent, obj_edit_time}
-    pages = {}       # title → {...}
-    special_docs = {}  # 日志 / 索引 → {...}
+    containers = {}
+    pages = {}
+    special_docs = {}
 
-    # 3. 处理顶层子节点
     for child in top_children:
         title = child.get("title", "")
         node_token = child.get("node_token", "")
         obj_token = child.get("obj_token", "")
-        obj_type = child.get("obj_type", "")
         edit_time = child.get("obj_edit_time", "")
 
         if title in TOP_CONTAINERS:
@@ -287,21 +258,21 @@ def _build_cache() -> None:
             special_docs[title] = {
                 "node_token": node_token,
                 "obj_token": obj_token,
-                "url": f"https://www.feishu.cn/wiki/{node_token}",
+                "url": f"https://bytedance.larkoffice.com/wiki/{node_token}",
                 "obj_edit_time": edit_time,
             }
-        elif obj_type == "docx" and title:
-            # 其他顶层 docx 作为无分类页面
+        elif child.get("obj_type") == "docx" and title:
             pages[title] = {
                 "category": None,
                 "parent_token": root_node_token,
                 "node_token": node_token,
                 "obj_token": obj_token,
-                "url": f"https://www.feishu.cn/wiki/{node_token}",
+                "url": f"https://bytedance.larkoffice.com/wiki/{node_token}",
                 "obj_edit_time": edit_time,
+                "summary": "",
             }
 
-    # 4. 扫描每个容器的直接子节点
+    # 3. 扫描容器（并发）
     container_tasks = [(name, info["node_token"]) for name, info in containers.items()]
 
     def _scan_container(args):
@@ -318,10 +289,8 @@ def _build_cache() -> None:
                 obj_token = child.get("obj_token", "")
                 edit_time = child.get("obj_edit_time", "")
 
-                # 原始资料下是子容器，再向下一层
                 if name == "原始资料" and title in RAW_SUBS:
-                    path = f"原始资料/{title}"
-                    containers[path] = {
+                    containers[f"原始资料/{title}"] = {
                         "node_token": node_token,
                         "obj_token": obj_token,
                         "parent": "原始资料",
@@ -334,11 +303,12 @@ def _build_cache() -> None:
                     "parent_token": containers[name]["node_token"],
                     "node_token": node_token,
                     "obj_token": obj_token,
-                    "url": f"https://www.feishu.cn/wiki/{node_token}",
+                    "url": f"https://bytedance.larkoffice.com/wiki/{node_token}",
                     "obj_edit_time": edit_time,
+                    "summary": "",
                 }
 
-    # 5. 扫描原始资料子容器的页面
+    # 4. 扫描原始资料子容器
     raw_sub_tasks = [
         (path, info["node_token"])
         for path, info in containers.items()
@@ -351,37 +321,33 @@ def _build_cache() -> None:
                 if not title:
                     continue
                 pages[title] = {
-                    "category": name,  # e.g. "原始资料/论文"
+                    "category": name,
                     "parent_token": containers[name]["node_token"],
                     "node_token": child.get("node_token", ""),
                     "obj_token": child.get("obj_token", ""),
-                    "url": f"https://www.feishu.cn/wiki/{child.get('node_token', '')}",
+                    "url": f"https://bytedance.larkoffice.com/wiki/{child.get('node_token', '')}",
                     "obj_edit_time": child.get("obj_edit_time", ""),
+                    "summary": "",
                 }
 
-    # 6. 并发拉取所有页面正文
+    # 5. 保留旧索引中的 summary
+    if INDEX_FILE.exists():
+        try:
+            old_index = json.loads(INDEX_FILE.read_text(encoding="utf-8"))
+            old_pages = old_index.get("pages", {})
+            for title, info in pages.items():
+                if title in old_pages and old_pages[title].get("summary"):
+                    info["summary"] = old_pages[title]["summary"]
+        except Exception:
+            pass
+
+    # 6. 拉取日志
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
-
-    def _fetch_and_save(args):
-        title, obj_token = args
-        md = _fetch_doc_markdown(obj_token)
-        _doc_cache_path(title).write_text(md, encoding="utf-8")
-        return title
-
-    fetch_tasks = [(t, p["obj_token"]) for t, p in pages.items() if p.get("obj_token")]
-    fetched = 0
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-        futures = [ex.submit(_fetch_and_save, task) for task in fetch_tasks]
-        for fut in as_completed(futures):
-            fut.result()
-            fetched += 1
-
-    # 7. 拉取 日志 docx
     if "日志" in special_docs:
         md = _fetch_doc_markdown(special_docs["日志"]["obj_token"])
         LOG_FILE.write_text(md, encoding="utf-8")
 
-    # 8. 写 index
+    # 7. 写索引
     index = {
         "built_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "space_id": space_id,
@@ -398,33 +364,70 @@ def _build_cache() -> None:
         json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
-    # 9. 初始化 state
-    state = {
-        "started_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "dirty_pages": [],
-        "dirty_log": False,
-        "last_sync_at": None,
-    }
-    STATE_FILE.write_text(
-        json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    # 8. 初始化 state（如不存在）
+    if not STATE_FILE.exists():
+        state = {
+            "started_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "dirty_pages": [],
+            "dirty_log": False,
+            "last_sync_at": None,
+        }
+        STATE_FILE.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     print(
-        f"[fw] 缓存就绪：{len(pages)} 个页面，{len(containers)} 个容器",
+        f"[fw] 索引就绪：{len(pages)} 个页面，{len(containers)} 个容器",
         file=sys.stderr, flush=True,
     )
+    return index
+
+
+def _refresh_index_if_stale() -> dict:
+    """如果索引 TTL 过期，重新拉取。否则返回本地缓存。"""
+    global _INDEX_LAST_REFRESH
+    now = _time.time()
+    if INDEX_FILE.exists() and (now - _INDEX_LAST_REFRESH) < INDEX_TTL:
+        return _load_index()
+    index = _build_index()
+    _INDEX_LAST_REFRESH = now
+    return index
+
+
+def init(space_id: Optional[str] = None):
+    """初始化：拉取索引和日志。可选指定 space_id。"""
+    global _CACHE_READY, _ATEXIT_REGISTERED, _INDEX_LAST_REFRESH
+
+    if space_id:
+        config = Path(".feishu-config.json")
+        cfg = {}
+        if config.exists():
+            try:
+                cfg = json.loads(config.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        cfg["space_id"] = space_id
+        config.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    _build_index()
+    _INDEX_LAST_REFRESH = _time.time()
+    _CACHE_READY = True
+
+    if not _ATEXIT_REGISTERED:
+        atexit.register(_atexit_sync)
+        _ATEXIT_REGISTERED = True
 
 
 def _ensure_cache() -> None:
-    """确保缓存可用。如果不存在则构建。幂等。"""
-    global _CACHE_READY, _ATEXIT_REGISTERED
+    """确保索引可用。幂等。"""
+    global _CACHE_READY, _ATEXIT_REGISTERED, _INDEX_LAST_REFRESH
     if _CACHE_READY:
         return
 
     if not INDEX_FILE.exists() or not STATE_FILE.exists():
-        _build_cache()
+        _build_index()
+        _INDEX_LAST_REFRESH = _time.time()
     else:
-        # 已有缓存，但要确保 DOCS_DIR 存在
         DOCS_DIR.mkdir(parents=True, exist_ok=True)
 
     _CACHE_READY = True
@@ -435,7 +438,7 @@ def _ensure_cache() -> None:
 
 
 def _atexit_sync():
-    """Python 进程退出时自动 sync。"""
+    """Python 进程退出时自动 sync dirty 页面。"""
     try:
         state = _load_state()
         if state.get("dirty_pages") or state.get("dirty_log"):
@@ -487,9 +490,9 @@ def _mark_dirty_log() -> None:
 
 
 def find(query: str, category: Optional[str] = None) -> Optional[dict]:
-    """按标题查找页面。精确匹配优先，回退到包含匹配。"""
+    """按标题查找页面。精确匹配优先，回退到包含匹配。自动刷新过期索引。"""
     _ensure_cache()
-    index = _load_index()
+    index = _refresh_index_if_stale()
     pages = index.get("pages", {})
 
     if query in pages:
@@ -511,9 +514,9 @@ def find(query: str, category: Optional[str] = None) -> Optional[dict]:
 
 
 def list_pages(category: Optional[str] = None) -> list:
-    """列出所有页面（可按分类过滤）。"""
+    """列出所有页面（可按分类过滤）。自动刷新过期索引。"""
     _ensure_cache()
-    index = _load_index()
+    index = _refresh_index_if_stale()
     result = []
     for title, info in index.get("pages", {}).items():
         if category is None or info.get("category") == category:
@@ -522,64 +525,72 @@ def list_pages(category: Optional[str] = None) -> list:
 
 
 def exists(title: str) -> bool:
-    """严格精确匹配，不做模糊查找（避免 create 误判冲突）。"""
+    """严格精确匹配，不做模糊查找。"""
     _ensure_cache()
-    index = _load_index()
+    index = _refresh_index_if_stale()
     return title in index.get("pages", {})
 
 
-def grep(pattern: str, category: Optional[str] = None, ignore_case: bool = True) -> list:
-    """在所有页面正文中搜索关键词，返回匹配的页面列表（含上下文片段）。
+def fetch(page_or_title, fresh: bool = False) -> str:
+    """读取页面正文。
 
-    返回格式: [{"title": str, "category": str, "matches": [{"line": int, "text": str}]}]
+    默认使用本地缓存（如果 edit_time 未变）。
+    fresh=True 时强制从飞书拉取最新版本。
     """
-    _ensure_cache()
-    import re as _re
-    flags = _re.IGNORECASE if ignore_case else 0
-    try:
-        compiled = _re.compile(pattern, flags)
-    except _re.error:
-        compiled = _re.compile(_re.escape(pattern), flags)
-
-    results = []
-    for page in list_pages(category=category):
-        title = page["title"]
-        content = fetch(title)
-        if not content:
-            continue
-        lines = content.split("\n")
-        hits = []
-        for i, line in enumerate(lines, 1):
-            if compiled.search(line):
-                hits.append({"line": i, "text": line.strip()[:120]})
-        if hits:
-            results.append({
-                "title": title,
-                "category": page.get("category", ""),
-                "matches": hits,
-            })
-    results.sort(key=lambda x: -len(x["matches"]))
-    return results
-
-
-def fetch(page_or_title) -> str:
-    """从本地缓存读取页面正文。零 API 调用。"""
     _ensure_cache()
     if isinstance(page_or_title, dict):
         title = page_or_title.get("title", "")
     else:
         title = page_or_title
 
+    index = _refresh_index_if_stale()
+    page_info = index.get("pages", {}).get(title)
+    if not page_info:
+        page_info = find(title)
+        if not page_info:
+            raise ValueError(f"找不到页面: {title}")
+        title = page_info.get("title", title)
+
     path = _doc_cache_path(title)
-    if not path.exists():
-        # 缓存缺失，回退到 API
+    obj_token = page_info.get("obj_token", "")
+
+    if not fresh and path.exists():
+        # 检查 edit_time 是否一致（索引中的 vs 缓存时记录的）
+        state = _load_state()
+        cached_times = state.get("cached_edit_times", {})
+        if cached_times.get(title) == page_info.get("obj_edit_time", ""):
+            return path.read_text(encoding="utf-8")
+
+    # 拉取最新
+    if not obj_token:
+        raise ValueError(f"页面 {title} 没有 obj_token")
+    md = _fetch_doc_markdown(obj_token)
+    path.write_text(md, encoding="utf-8")
+
+    # 记录缓存的 edit_time
+    state = _load_state()
+    state.setdefault("cached_edit_times", {})[title] = page_info.get("obj_edit_time", "")
+    _save_state(state)
+
+    return md
+
+
+def link(page_or_title) -> str:
+    """返回页面的飞书 URL。"""
+    _ensure_cache()
+    if isinstance(page_or_title, dict):
+        url = page_or_title.get("url", "")
+        title = page_or_title.get("title", "")
+    else:
+        title = page_or_title
         page = find(title)
         if not page:
             raise ValueError(f"找不到页面: {title}")
-        md = _fetch_doc_markdown(page["obj_token"])
-        path.write_text(md, encoding="utf-8")
-        return md
-    return path.read_text(encoding="utf-8")
+        url = page.get("url", "")
+
+    if not url:
+        raise ValueError(f"页面 {title} 没有 URL")
+    return url
 
 
 # === attribution callout ===
@@ -592,7 +603,6 @@ _CALLOUT_RE = re.compile(
 
 
 def _make_attribution_callout(created_by: dict, updated_by: dict, created_at: str, updated_at: str) -> str:
-    """生成 attribution callout 块。"""
     cn = created_by.get("name", "unknown")
     un = updated_by.get("name", "unknown")
     cd = (created_at or "")[:10]
@@ -605,7 +615,6 @@ def _make_attribution_callout(created_by: dict, updated_by: dict, created_at: st
 
 
 def _extract_attribution(content: str) -> Optional[dict]:
-    """从内容中提取已有的 attribution callout 信息（用于保留 created_by）。"""
     m = re.search(
         r'<callout emoji="(?:👤|bust_in_silhouette)"[^>]*>(.*?)</callout>',
         content, re.DOTALL,
@@ -624,35 +633,25 @@ def _extract_attribution(content: str) -> Optional[dict]:
 
 
 def _upsert_attribution(content: str, is_create: bool) -> str:
-    """把 attribution callout 插入或更新到 content 顶部。"""
     user = _current_user()
     today = datetime.now().strftime("%Y-%m-%d")
 
     existing = _extract_attribution(content)
     if existing and existing.get("created_name"):
-        # 保留旧的 created 信息
         created = {"name": existing["created_name"]}
         created_at = existing.get("created_date", today)
     else:
         created = user
         created_at = today
 
-    updated = user
-    updated_at = today
-
-    new_callout = _make_attribution_callout(
-        created, updated, created_at, updated_at
-    )
+    new_callout = _make_attribution_callout(created, user, created_at, today)
 
     if existing:
-        # 替换现有 callout
         return re.sub(
             r'<callout emoji="(?:👤|bust_in_silhouette)"[^>]*>.*?</callout>',
             new_callout, content, count=1, flags=re.DOTALL,
         )
     else:
-        # 插入到顶部（如果有其他 callout，插到它们之后）
-        # 找到第一个非 callout 的内容位置
         other_callouts = re.match(
             r'((?:<callout[^>]*>.*?</callout>\s*)*)',
             content, re.DOTALL,
@@ -667,73 +666,99 @@ def _upsert_attribution(content: str, is_create: bool) -> str:
 # === 创建 / 更新 ===
 
 
-def create(category: str, title: str, content: str) -> dict:
-    """
-    在指定分类下创建新页面。立即调飞书（需要拿 obj_token），同时写本地缓存。
-
-    category: "来源" / "主题" / "实体" / "综合" / "原始资料/论文" 等
-    """
-    _ensure_cache()
-
-    if category not in ALL_CATEGORIES and category != "原始资料":
-        raise ValueError(f"无效分类: {category}，可选: {ALL_CATEGORIES}")
-
-    if exists(title):
-        raise ValueError(f"页面已存在: {title}（请用 update）")
-
-    index = _load_index()
-    container = index["containers"].get(category)
-    if not container:
-        raise ValueError(f"找不到分类容器: {category}")
-    parent_token = container["node_token"]
-
-    # 插入 attribution callout
-    content = _upsert_attribution(content, is_create=True)
-
+def _upload_page(title: str, obj_token: str, content: str) -> None:
+    """立即上传单个页面到飞书。"""
     r = _run_lark(
-        ["docs", "+create", "--as", "user",
-         "--wiki-node", parent_token,
-         "--title", title,
+        ["docs", "+update", "--as", "user",
+         "--doc", obj_token,
+         "--mode", "overwrite",
          "--markdown", content],
         check=True,
     )
     if not _is_success(r):
-        raise RuntimeError(f"create 失败: {r}")
-
-    data = r.get("data", {})
-    doc_id = data.get("doc_id")
-    doc_url = data.get("doc_url", "")
-    node_token = doc_url.split("/")[-1] if "/wiki/" in doc_url else ""
-
-    # 本地缓存
-    _doc_cache_path(title).write_text(content, encoding="utf-8")
-
-    new_page = {
-        "category": category,
-        "parent_token": parent_token,
-        "node_token": node_token,
-        "obj_token": doc_id,
-        "url": doc_url,
-        "obj_edit_time": "",  # 刚创建，下次 sync 前会更新
-    }
-    index.setdefault("pages", {})[title] = new_page
-    _save_index(index)
-
-    append_log(f"创建 | {title}", details=f"分类：{category}")
-
-    return {"title": title, **new_page}
+        raise RuntimeError(f"上传失败 {title}: {r}")
 
 
-def update(
-    page_or_title,
-    content: str,
-    mode: str = "append",
-) -> None:
+def create(category: str, title: str, content: str, summary: str = "") -> dict:
     """
-    更新页面。只改本地缓存 + 标 dirty。atexit 或显式 sync 时才上传。
+    在指定分类下创建新页面。
 
+    如果在 fw.lock() 上下文中，锁已持有。
+    否则自动获取/释放锁。
+    """
+    from feishu_wiki.lock import _is_locked, lock
+
+    _ensure_cache()
+
+    if category not in ALL_CATEGORIES and category != "原始资料":
+        raise ValueError(f"无效分类: {category}，可选: {ALL_CATEGORIES}")
+    if exists(title):
+        raise ValueError(f"页面已存在: {title}（请用 update）")
+
+    def _do_create():
+        index = _load_index()
+        container = index["containers"].get(category)
+        if not container:
+            raise ValueError(f"找不到分类容器: {category}")
+        parent_token = container["node_token"]
+
+        # 插入 attribution callout
+        attributed_content = _upsert_attribution(content, is_create=True)
+
+        r = _run_lark(
+            ["docs", "+create", "--as", "user",
+             "--wiki-node", parent_token,
+             "--title", title,
+             "--markdown", attributed_content],
+            check=True,
+        )
+        if not _is_success(r):
+            raise RuntimeError(f"create 失败: {r}")
+
+        data = r.get("data", {})
+        doc_id = data.get("doc_id")
+        doc_url = data.get("doc_url", "")
+        node_token = doc_url.split("/")[-1] if "/wiki/" in doc_url else ""
+
+        # 本地缓存
+        _doc_cache_path(title).write_text(attributed_content, encoding="utf-8")
+
+        new_page = {
+            "category": category,
+            "parent_token": parent_token,
+            "node_token": node_token,
+            "obj_token": doc_id,
+            "url": doc_url,
+            "obj_edit_time": "",
+            "summary": summary,
+        }
+        index.setdefault("pages", {})[title] = new_page
+        _save_index(index)
+
+        # 记录 cached_edit_time
+        state = _load_state()
+        state.setdefault("cached_edit_times", {})[title] = ""
+        _save_state(state)
+
+        append_log(f"创建 | {title}", details=f"分类：{category}")
+        return {"title": title, **new_page}
+
+    if _is_locked():
+        return _do_create()
+    else:
+        with lock():
+            return _do_create()
+
+
+def update(page_or_title, content: str, mode: str = "append", summary: str = "") -> None:
+    """
+    更新页面。自动获取锁 → 拉最新 → 修改 → 上传 → 释放锁。
+
+    如果在 fw.lock() 上下文中，锁已持有，不会重复获取。
     mode: append（推荐）/ overwrite
     """
+    from feishu_wiki.lock import _is_locked, lock
+
     _ensure_cache()
 
     if isinstance(page_or_title, dict):
@@ -741,32 +766,50 @@ def update(
     else:
         title = page_or_title
 
-    if not find(title):
-        raise ValueError(f"找不到页面: {title}")
+    def _do_update():
+        page = find(title)
+        if not page:
+            raise ValueError(f"找不到页面: {title}")
 
-    path = _doc_cache_path(title)
-    if not path.exists():
-        # 冷加载
-        fetch(title)
+        # 拉取最新版本
+        current = fetch(title, fresh=True)
 
-    current = path.read_text(encoding="utf-8")
+        if mode == "append":
+            new_content = current.rstrip() + "\n\n" + content
+        elif mode == "overwrite":
+            new_content = content
+        else:
+            raise ValueError(f"不支持的 mode: {mode}")
 
-    if mode == "append":
-        new_content = current.rstrip() + "\n\n" + content
-    elif mode == "overwrite":
-        new_content = content
+        # 更新 attribution
+        new_content = _upsert_attribution(new_content, is_create=False)
+
+        # 立即上传
+        obj_token = page.get("obj_token", "")
+        if not obj_token:
+            raise ValueError(f"页面 {title} 没有 obj_token")
+        _upload_page(title, obj_token, new_content)
+
+        # 更新本地缓存
+        _doc_cache_path(title).write_text(new_content, encoding="utf-8")
+
+        # 更新索引中的 summary（如果提供了）
+        if summary:
+            index = _load_index()
+            if title in index.get("pages", {}):
+                index["pages"][title]["summary"] = summary
+                _save_index(index)
+
+        append_log(f"更新 | {title}", details=f"mode={mode}")
+
+    if _is_locked():
+        _do_update()
     else:
-        raise ValueError(f"不支持的 mode: {mode}（只支持 append / overwrite）")
-
-    # 更新 attribution
-    new_content = _upsert_attribution(new_content, is_create=False)
-
-    path.write_text(new_content, encoding="utf-8")
-    _mark_dirty_page(title)
-    append_log(f"更新 | {title}", details=f"mode={mode}")
+        with lock():
+            _do_update()
 
 
-# === 日志（本地缓存 → sync 时上传到飞书 日志 docx）===
+# === 日志 ===
 
 
 def append_log(summary: str, details: Optional[str] = None) -> None:
@@ -788,14 +831,11 @@ def append_log(summary: str, details: Optional[str] = None) -> None:
     _mark_dirty_log()
 
 
-# === 同步（checkin）===
+# === 同步 ===
 
 
 def _refetch_edit_times(obj_tokens: list) -> dict:
-    """
-    重新拉取指定页面的 obj_edit_time，用于冲突检测。
-    只扫描目标 token 实际所在的父容器（不盲扫所有容器）。
-    """
+    """重新拉取指定页面的 obj_edit_time。"""
     result = {}
     if not obj_tokens:
         return result
@@ -804,7 +844,6 @@ def _refetch_edit_times(obj_tokens: list) -> dict:
     space_id = index["space_id"]
     target_set = set(obj_tokens)
 
-    # 把 obj_token 反向映射到它们的 parent_token（从 index.pages 查）
     token_to_parent = {}
     for title, p in index.get("pages", {}).items():
         ot = p.get("obj_token", "")
@@ -812,13 +851,11 @@ def _refetch_edit_times(obj_tokens: list) -> dict:
         if ot in target_set and pt:
             token_to_parent[ot] = pt
 
-    # 特殊 docs（日志）的 parent 是 root
     for name, info in index.get("special_docs", {}).items():
         ot = info.get("obj_token", "")
         if ot in target_set:
             token_to_parent[ot] = index["root"]["node_token"]
 
-    # 只扫描需要的 parent（去重），并发拉取（atexit 时降级串行）
     parents_to_scan = set(token_to_parent.values())
     try:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
@@ -839,126 +876,44 @@ def _refetch_edit_times(obj_tokens: list) -> dict:
 
 
 def sync() -> dict:
-    """
-    同步本地 dirty 变更到飞书。
-    返回 {uploaded: N, conflicts: [title1, ...]}.
-    """
+    """同步本地 dirty 变更（日志）到飞书。普通页面已在 update 时立即上传。"""
     with _SYNC_LOCK:
         state = _load_state()
-        dirty_pages = state.get("dirty_pages", [])
         dirty_log = state.get("dirty_log", False)
 
-        if not dirty_pages and not dirty_log:
-            return {"uploaded": 0, "conflicts": []}
+        if not dirty_log:
+            return {"uploaded": 0}
 
         index = _load_index()
-        pages = index.get("pages", {})
-
-        # 1. 收集要检查的 obj_token（只检查普通页面；日志是 append-only 单写入，跳过检测）
-        check_tokens = []
-        for title in dirty_pages:
-            p = pages.get(title)
-            if p and p.get("obj_token"):
-                check_tokens.append(p["obj_token"])
-
-        # 2. 冲突检测：重新拉取 obj_edit_time
-        if check_tokens:
-            print(f"[fw] 冲突检测：{len(check_tokens)} 个页面", file=sys.stderr, flush=True)
-            current_times = _refetch_edit_times(check_tokens)
-        else:
-            current_times = {}
-
-        conflicts = []
-        for title in dirty_pages:
-            p = pages.get(title)
-            if not p:
-                continue
-            cached_time = p.get("obj_edit_time", "")
-            current_time = current_times.get(p["obj_token"], "")
-            if cached_time and current_time and cached_time != current_time:
-                conflicts.append(title)
-
-        if conflicts:
-            raise RuntimeError(
-                f"冲突：以下页面在飞书被其他人修改过，拒绝覆盖：{conflicts}。"
-                f"请检查后手动处理（可能需要 fw.refresh() 重建缓存，再重新应用改动）"
-            )
-
-        # 3. 无冲突，批量并发上传
-        def _upload_one(args):
-            label, obj_token, content = args
-            r = _run_lark(
-                ["docs", "+update", "--as", "user",
-                 "--doc", obj_token,
-                 "--mode", "overwrite",
-                 "--markdown", content],
-                check=True,
-            )
-            if not _is_success(r):
-                raise RuntimeError(f"上传失败 {label}: {r}")
-            return label
-
-        upload_tasks = []
-        for title in list(dirty_pages):
-            p = pages.get(title)
-            if not p:
-                continue
-            path = _doc_cache_path(title)
-            if not path.exists():
-                continue
-            upload_tasks.append((title, p["obj_token"], path.read_text(encoding="utf-8")))
+        uploaded = 0
 
         if dirty_log and "日志" in index.get("special_docs", {}):
             log_info = index["special_docs"]["日志"]
             content = LOG_FILE.read_text(encoding="utf-8") if LOG_FILE.exists() else "# 日志\n"
-            upload_tasks.append(("日志", log_info["obj_token"], content))
+            _upload_page("日志", log_info["obj_token"], content)
+            uploaded += 1
 
-        uploaded = 0
-        # atexit 里 ThreadPoolExecutor 不可用，回退串行
-        try:
-            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-                for _ in ex.map(_upload_one, upload_tasks):
-                    uploaded += 1
-        except RuntimeError:
-            for task in upload_tasks:
-                _upload_one(task)
-                uploaded += 1
-
-        # 5. 更新本地 obj_edit_time 为最新
-        new_times = _refetch_edit_times(check_tokens)
-        for title in dirty_pages:
-            p = pages.get(title)
-            if p and p["obj_token"] in new_times:
-                p["obj_edit_time"] = new_times[p["obj_token"]]
-        if dirty_log and "日志" in index.get("special_docs", {}):
-            log_info = index["special_docs"]["日志"]
-            if log_info["obj_token"] in new_times:
-                log_info["obj_edit_time"] = new_times[log_info["obj_token"]]
-        _save_index(index)
-
-        # 6. 清 dirty
-        state["dirty_pages"] = []
         state["dirty_log"] = False
         state["last_sync_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         _save_state(state)
 
         print(f"[fw] ✓ 已同步 {uploaded} 项", file=sys.stderr, flush=True)
-        return {"uploaded": uploaded, "conflicts": []}
+        return {"uploaded": uploaded}
 
 
 def refresh() -> None:
-    """强制重建缓存。先 sync 未提交变更，再重新拉取。"""
-    state = _load_state()
-    if state.get("dirty_pages") or state.get("dirty_log"):
-        sync()
-    global _CACHE_READY
+    """强制重建索引。"""
+    global _CACHE_READY, _INDEX_LAST_REFRESH
+    sync()
     _CACHE_READY = False
-    _build_cache()
+    _INDEX_LAST_REFRESH = 0
+    _build_index()
+    _INDEX_LAST_REFRESH = _time.time()
     _CACHE_READY = True
 
 
 def status() -> dict:
-    """查看当前缓存状态和未同步变更。"""
+    """查看当前缓存状态。"""
     if not INDEX_FILE.exists():
         return {"cache": "missing"}
     index = _load_index()
@@ -967,7 +922,6 @@ def status() -> dict:
         "cache": "ready",
         "built_at": index.get("built_at"),
         "pages": len(index.get("pages", {})),
-        "dirty_pages": state.get("dirty_pages", []),
         "dirty_log": state.get("dirty_log", False),
         "last_sync_at": state.get("last_sync_at"),
     }
@@ -993,39 +947,3 @@ def resolve_wikilinks(content: str) -> str:
         return f"**{display.strip()}**"
 
     return re.sub(r"\[\[([^\]]+)\]\]", replacer, content)
-
-
-# === 便捷搜索 ===
-
-
-def search_feishu(keyword: str, limit: int = 10, wiki_only: bool = False) -> list:
-    """通过飞书搜索 API 全文检索文档。
-
-    返回格式: [{"title": str, "summary": str, "url": str, "type": str,
-                "owner": str, "updated": str, "token": str}]
-    """
-    r = _run_lark(
-        ["docs", "+search", "--as", "user", "--query", keyword,
-         "--page-size", str(min(limit, 20))]
-    )
-    if not _is_success(r):
-        return []
-
-    results = []
-    for item in r.get("data", {}).get("results", []):
-        entity_type = item.get("entity_type", "")
-        if wiki_only and entity_type != "WIKI":
-            continue
-        meta = item.get("result_meta", {})
-        title = re.sub(r"</?h>", "", item.get("title_highlighted", ""))
-        summary = re.sub(r"</?h>", "", item.get("summary_highlighted", ""))
-        results.append({
-            "title": title,
-            "summary": summary,
-            "url": meta.get("url", ""),
-            "type": entity_type,
-            "owner": meta.get("owner_name", ""),
-            "updated": meta.get("update_time_iso", "")[:10],
-            "token": meta.get("token", ""),
-        })
-    return results
