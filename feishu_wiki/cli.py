@@ -113,46 +113,40 @@ def _get_agents_md_content():
 
 
 def _setup_agent():
-    """检测 Agent 环境并写入指令文件。"""
+    """检测 Agent 环境并注册 SKILL.md。"""
+    from feishu_wiki.onboarding import _build_skill_content
+    skill_content = _build_skill_content()
+    registered = []
+
+    # Claude Code: ~/.claude/skills/feishu-wiki/SKILL.md
     claude_dir = Path.home() / ".claude"
-    commands_dir = claude_dir / "commands"
-
-    # Claude Code
     if claude_dir.exists() or shutil.which("claude"):
-        commands_dir.mkdir(parents=True, exist_ok=True)
-        wiki_cmd = commands_dir / "wiki.md"
-        content = _get_agents_md_content()
-        wiki_cmd.write_text(content, encoding="utf-8")
-        print(f"  ✅ Claude Code：已写入 {wiki_cmd}")
-        print("     Agent 现在可以通过 /wiki 命令加载 AI Wiki 指令")
-        return "claude"
+        skill_dir = claude_dir / "skills" / "feishu-wiki"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
+        print(f"  ✅ Claude Code：已注册 skill → {skill_dir / 'SKILL.md'}")
+        registered.append("claude")
 
-    # Codex — check for AGENTS.md convention
-    if shutil.which("codex"):
+    # Codex: ~/.codex/skills/feishu-wiki/SKILL.md
+    codex_dir = Path.home() / ".codex"
+    if codex_dir.exists() or shutil.which("codex"):
+        skill_dir = codex_dir / "skills" / "feishu-wiki"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
+        print(f"  ✅ Codex：已注册 skill → {skill_dir / 'SKILL.md'}")
+        registered.append("codex")
+
+    if not registered:
+        # 未检测到特定 agent，创建 AGENTS.md
         agents_md = Path.cwd() / "AGENTS.md"
         if not agents_md.exists():
             agents_md.write_text(_get_agents_md_content(), encoding="utf-8")
-            print(f"  ✅ Codex：已创建 {agents_md}")
+            print(f"  ✅ 已创建 {agents_md}（通用 Agent 指令文件）")
         else:
             print(f"  ⚠️ {agents_md} 已存在，跳过写入")
-            print(f"     请手动将 AI Wiki 指令追加到 AGENTS.md")
-        return "codex"
+        registered.append("generic")
 
-    # Cursor
-    cursorrules = Path.cwd() / ".cursorrules"
-    if cursorrules.exists():
-        print(f"  ⚠️ .cursorrules 已存在，跳过写入")
-        print(f"     请手动将 AI Wiki 指令追加到 .cursorrules")
-        return "cursor"
-
-    # 未检测到特定 agent，默认创建 AGENTS.md
-    agents_md = Path.cwd() / "AGENTS.md"
-    if not agents_md.exists():
-        agents_md.write_text(_get_agents_md_content(), encoding="utf-8")
-        print(f"  ✅ 已创建 {agents_md}")
-    else:
-        print(f"  ⚠️ {agents_md} 已存在，跳过写入")
-    return "generic"
+    return registered[0] if registered else "generic"
 
 
 def _show_onboarding():

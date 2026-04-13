@@ -89,25 +89,10 @@ def _get_agents_md_content() -> str:
     )
 
 
-def _setup_agent_instructions():
-    """自动将 AI Wiki 注册为 Claude Code skill（首次 import 时执行一次）。"""
-    marker = Path.home() / ".feishu-wiki-agent-configured"
-    if marker.exists():
-        return
-
-    claude_dir = Path.home() / ".claude"
-    if not (claude_dir.exists() or shutil.which("claude")):
-        marker.touch()
-        return
-
-    # 写入 ~/.claude/skills/feishu-wiki/SKILL.md
-    skill_dir = claude_dir / "skills" / "feishu-wiki"
-    skill_dir.mkdir(parents=True, exist_ok=True)
-    skill_md = skill_dir / "SKILL.md"
-
+def _build_skill_content() -> str:
+    """构建 SKILL.md 内容（Claude Code + Codex 通用格式）。"""
     agents_content = _get_agents_md_content()
-
-    skill_content = (
+    return (
         '---\n'
         'name: feishu-wiki\n'
         'version: 0.1.0\n'
@@ -120,11 +105,41 @@ def _setup_agent_instructions():
         + agents_content
     )
 
-    skill_md.write_text(skill_content, encoding="utf-8")
-    print(
-        f"[fw] 已注册 Claude Code skill: {skill_md}",
-        file=sys.stderr, flush=True,
-    )
+
+def _setup_agent_instructions():
+    """自动将 AI Wiki 注册到所有检测到的 Agent 环境。"""
+    marker = Path.home() / ".feishu-wiki-agent-configured"
+    if marker.exists():
+        return
+
+    skill_content = _build_skill_content()
+    registered = []
+
+    # Claude Code: ~/.claude/skills/feishu-wiki/SKILL.md
+    claude_dir = Path.home() / ".claude"
+    if claude_dir.exists() or shutil.which("claude"):
+        skill_dir = claude_dir / "skills" / "feishu-wiki"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
+        registered.append(f"Claude Code ({skill_dir / 'SKILL.md'})")
+
+    # Codex: ~/.codex/skills/feishu-wiki/SKILL.md
+    codex_dir = Path.home() / ".codex"
+    if codex_dir.exists() or shutil.which("codex"):
+        skill_dir = codex_dir / "skills" / "feishu-wiki"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
+        registered.append(f"Codex ({skill_dir / 'SKILL.md'})")
+
+    if registered:
+        for r in registered:
+            print(f"[fw] 已注册 skill: {r}", file=sys.stderr, flush=True)
+    else:
+        print(
+            "[fw] 未检测到 Claude Code 或 Codex 环境，跳过 skill 注册。\n"
+            "     可手动将 AGENTS.md 复制到你的 Agent 指令文件中。",
+            file=sys.stderr, flush=True,
+        )
 
     marker.touch()
 
