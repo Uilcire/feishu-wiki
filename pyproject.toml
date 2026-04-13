@@ -13,6 +13,7 @@ authors = [{name = "AI Wiki Team"}]
 
 [project.scripts]
 feishu-wiki = "feishu_wiki.cli:main"
+feishu-wiki-register = "feishu_wiki._post_install:run"
 
 [project.urls]
 Homepage = "https://github.com/Uilcire/feishu-wiki"
