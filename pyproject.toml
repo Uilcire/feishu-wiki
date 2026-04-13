@@ -11,8 +11,14 @@ requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [{name = "AI Wiki Team"}]
 
+[project.scripts]
+feishu-wiki = "feishu_wiki.cli:main"
+
 [project.urls]
-Homepage = "https://github.com/your-org/feishu-wiki"
+Homepage = "https://github.com/Uilcire/feishu-wiki"
 
 [tool.setuptools.packages.find]
 include = ["feishu_wiki*"]
+
+[tool.setuptools.package-data]
+feishu_wiki = ["../AGENTS.md"]
