@@ -666,6 +666,16 @@ def _upsert_attribution(content: str, is_create: bool) -> str:
 # === 创建 / 更新 ===
 
 
+def _check_write_permission():
+    """检查当前用户是否有写权限。"""
+    from feishu_wiki.onboarding import is_write_enabled
+    if not is_write_enabled():
+        raise PermissionError(
+            "当前为学习模式（只读），不能修改维基。\n"
+            "如需切换到贡献模式，运行：feishu-wiki mode write"
+        )
+
+
 def _upload_page(title: str, obj_token: str, content: str) -> None:
     """立即上传单个页面到飞书。"""
     r = _run_lark(
@@ -688,6 +698,7 @@ def create(category: str, title: str, content: str, summary: str = "") -> dict:
     """
     from feishu_wiki.lock import _is_locked, lock
 
+    _check_write_permission()
     _ensure_cache()
 
     if category not in ALL_CATEGORIES and category != "原始资料":
@@ -759,6 +770,7 @@ def update(page_or_title, content: str, mode: str = "append", summary: str = "")
     """
     from feishu_wiki.lock import _is_locked, lock
 
+    _check_write_permission()
     _ensure_cache()
 
     if isinstance(page_or_title, dict):

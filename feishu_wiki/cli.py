@@ -232,12 +232,31 @@ def main():
         status = fw.status()
         print(json.dumps(status, ensure_ascii=False, indent=2))
 
+    elif args[0] == "mode":
+        from feishu_wiki.onboarding import _CONFIG_FILE, get_mode
+        if len(args) < 2:
+            mode = get_mode()
+            current = "贡献模式（读写）" if mode.get("write_enabled") else "学习模式（只读）"
+            print(f"  当前模式：{current}")
+            print()
+            print("  切换：feishu-wiki mode read   → 学习模式")
+            print("        feishu-wiki mode write  → 贡献模式")
+        elif args[1] in ("write", "贡献"):
+            _CONFIG_FILE.write_text(json.dumps({"write_enabled": True}, indent=2))
+            print("  ✅ 已切换到贡献模式（读写）")
+        elif args[1] in ("read", "学习"):
+            _CONFIG_FILE.write_text(json.dumps({"write_enabled": False}, indent=2))
+            print("  ✅ 已切换到学习模式（只读）")
+        else:
+            print(f"  未知模式: {args[1]}，可选: read / write")
+
     elif args[0] == "help":
         print("用法: feishu-wiki <command>")
         print()
         print("命令:")
         print("  setup    一键安装和配置（首次使用）")
         print("  status   查看 wiki 状态")
+        print("  mode     查看/切换模式（read=学习 / write=贡献）")
         print("  help     显示帮助")
 
     else:

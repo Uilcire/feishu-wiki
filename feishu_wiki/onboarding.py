@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 _ACCEPT_FILE = Path.home() / ".feishu-wiki-accepted"
+_CONFIG_FILE = Path.home() / ".feishu-wiki-config.json"
 
 _NOTICE = """
 ═══════════════════════════════════════════════════════════════
@@ -175,4 +176,59 @@ def ensure_accepted():
         sys.exit(1)
 
     _ACCEPT_FILE.touch()
+
+    # 选择使用模式
+    _choose_mode()
+
     print("\n  ✅ 已确认。欢迎使用 AI Wiki！\n")
+
+
+def _choose_mode():
+    """让用户选择默认模式：只读（学习）还是读写（贡献）。"""
+    import json
+
+    if _CONFIG_FILE.exists():
+        return  # 已选过
+
+    print("""
+  选择你的默认模式：
+  ──────────────────
+  1. 学习模式（只读）
+     → 查询知识、浏览页面、搜索内容
+     → 不会创建或修改维基页面
+
+  2. 贡献模式（读写）
+     → 学习模式的全部功能
+     → 可以收录来源、创建页面、更新内容
+""")
+
+    try:
+        choice = input("  输入 1 或 2（默认 1）: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        choice = "1"
+
+    write_enabled = choice == "2"
+    config = {"write_enabled": write_enabled}
+    _CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+    if write_enabled:
+        print("  → 已设为贡献模式（读写）")
+    else:
+        print("  → 已设为学习模式（只读）")
+        print("     随时可用 feishu-wiki mode write 切换到贡献模式")
+
+
+def get_mode() -> dict:
+    """读取用户配置。返回 {"write_enabled": bool}。"""
+    import json
+    if _CONFIG_FILE.exists():
+        try:
+            return json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"write_enabled": False}
+
+
+def is_write_enabled() -> bool:
+    """当前用户是否启用了写权限。"""
+    return get_mode().get("write_enabled", False)
