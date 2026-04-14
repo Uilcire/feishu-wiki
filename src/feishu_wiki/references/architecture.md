@@ -59,6 +59,32 @@ Queue 页面：
 
 如果非要直接改，先让 Agent `fw.sync()` 确认无 dirty，改完后 `fw.refresh()` 重建缓存。
 
+## QA 追踪（v0.2.7+）
+
+所有读操作（`find`/`fetch`/`grep`/`search_feishu`）和显式 `log_qa()` 调用会异步写入飞书 Base。
+
+```
+调用 find("ReAct")
+    ↓
+_log_qa_event("call:find", "ReAct", "ReAct 架构")
+    ↓ (非阻塞)
+Queue → daemon worker → lark-cli base +record-upsert → 飞书 Base
+```
+
+- **Base**: `CO7nbn23lawW7wsCdYkctJGmnib`（QA History）
+- **Table**: `tbl0t8tClxjV4ZIP`（qa_history）
+- **Session**: 每个进程启动时生成 UUID，关联同一会话的所有调用
+- **开关**: `FEISHU_WIKI_QA_LOG=0` 关闭
+
+### 注意事项
+
+1. **lark-cli 权限**：写入 Base 需要 `base:record:write` scope。如遇 `missing_scope` 错误：
+   ```bash
+   lark-cli auth login --scope "base:record:write"
+   ```
+2. **daemon 线程**：worker 是 daemon 线程，进程退出时未 flush 的记录会丢失。`atexit` 会尝试关闭队列，但无法保证所有记录都写入。对于 analytics 数据，这是可接受的。
+3. **失败静默**：Base 写入失败不会影响主流程，错误被静默忽略。
+
 ## 冲突处理
 
 sync 前重新拉取 dirty 页面的 `obj_edit_time`。若飞书端被改过：

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.7 (2026-04-14)
+
+- QA 追踪：`find`/`fetch`/`grep`/`search_feishu` 自动埋点到飞书 Base
+- 新增 `fw.log_qa(question, answer)` 供 agent 记录完整 QA 交互
+- 后台线程异步写入，不阻塞主流程
+- 环境变量 `FEISHU_WIKI_QA_LOG=0` 可关闭
+
 ## 0.2.6 (2026-04-14)
 
 - 容器页自动同步：`create()`/`delete()` 后自动更新分类容器页面（子页面列表+计数）

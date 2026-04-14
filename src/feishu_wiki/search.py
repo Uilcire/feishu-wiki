@@ -7,7 +7,7 @@ from typing import Optional
 
 from feishu_wiki.core import (
     _ensure_cache, _run_lark, _is_success, _load_index,
-    fetch, list_pages, DOCS_DIR,
+    _log_qa_event, fetch, list_pages, DOCS_DIR,
 )
 
 
@@ -50,6 +50,7 @@ def grep(pattern: str, category: Optional[str] = None, ignore_case: bool = True)
                 "matches": hits,
             })
     results.sort(key=lambda x: -len(x["matches"]))
+    _log_qa_event("call:grep", pattern, f"{len(results)} pages matched")
     return results
 
 
@@ -98,4 +99,5 @@ def search_feishu(keyword: str, limit: int = 10, wiki_only: bool = False) -> lis
             "token": token,
             "is_wiki": is_wiki,
         })
+    _log_qa_event("call:search", keyword, f"{len(results)} results")
     return results

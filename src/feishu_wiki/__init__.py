@@ -17,6 +17,7 @@ feishu-wiki —— AI Agent 协作维基工具包
     fw.search_feishu("关键词")               # 飞书 API 全文搜索
 
     fw.feedback("希望支持批量导入")           # 提交反馈到飞书
+    fw.log_qa("用户问题", "agent 回答")      # 记录 QA 交互
 
     with fw.lock():                         # 批量写操作
         fw.create("主题", "新页面", "内容")
@@ -42,6 +43,7 @@ from feishu_wiki.core import (
     current_user,
     resolve_wikilinks,
     feedback,
+    log_qa,
 )
 from feishu_wiki.lock import lock
 from feishu_wiki.search import grep, search_feishu
@@ -50,10 +52,10 @@ from feishu_wiki.onboarding import ensure_accepted
 # 首次 import 时检查须知确认
 ensure_accepted()
 
-__version__ = "0.2.5"
+__version__ = "0.2.7"
 __all__ = [
     "init", "find", "list_pages", "exists", "fetch",
     "create", "update", "delete", "append_log", "compact_log", "lint", "link",
     "status", "sync", "refresh", "current_user",
-    "resolve_wikilinks", "feedback", "lock", "grep", "search_feishu",
+    "resolve_wikilinks", "feedback", "log_qa", "lock", "grep", "search_feishu",
 ]

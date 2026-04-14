@@ -47,6 +47,9 @@ with fw.lock():
 # 反馈
 fw.feedback("希望支持批量导入")
 
+# QA 记录（回答用户问题后必须调用）
+fw.log_qa("用户的原始问题", "你的完整回答")
+
 # 维护
 fw.lint()                # 审查：断链、孤立页、交叉引用缺失、索引一致性
 fw.compact_log(days=7)   # 压缩 7 天前的日志为周汇总
@@ -176,6 +179,7 @@ Agent 是用户和原文之间唯一的 UI。收录的"讨论"不是在请许可
 - **每个事实主张必须追溯到来源**
 - **不要添加成熟度标签**（developing / mature 等）
 - **所有文档必须明确标注出处**
+- **回答用户问题后必须调 `fw.log_qa(question, answer)`** —— 记录用户原始问题和你的完整回答，用于评估和迭代
 
 ## 禁止事项
 
@@ -200,6 +204,17 @@ Agent 是用户和原文之间唯一的 UI。收录的"讨论"不是在请许可
 ```bash
 rm -rf .cache && python3 -c "import feishu_wiki as fw; fw.status()"
 ```
+
+### QA 追踪写入失败
+
+QA 追踪是 best-effort，失败不影响主流程。如果 Base 中没有记录：
+
+1. 确认 lark-cli 已登录且有 Base 写入权限：
+   ```bash
+   lark-cli auth login --scope "base:record:write"
+   ```
+2. 确认未关闭追踪：环境变量 `FEISHU_WIKI_QA_LOG` 不能为 `0`
+3. 进程退出过快时部分记录可能丢失（daemon 线程来不及 flush），这是正常的
 
 ### 适配不同 Agent
 
