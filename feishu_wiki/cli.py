@@ -72,6 +72,7 @@ def _ensure_auth():
         name = data.get("userName")
         if name:
             print(f"  ✅ 已登录：{name}")
+            _ensure_scopes()
             return True
     except Exception:
         pass
@@ -86,7 +87,31 @@ def _ensure_auth():
         return False
 
     print("  ✅ 登录成功")
+    _ensure_scopes()
     return True
+
+
+def _ensure_scopes():
+    """确保反馈功能所需的 scope 已授权。"""
+    needed = ["base:app:create"]
+    try:
+        result = subprocess.run(
+            ["lark-cli", "auth", "status"],
+            capture_output=True, text=True,
+        )
+        data = json.loads(result.stdout)
+        granted = data.get("scopes") or []
+        missing = [s for s in needed if s not in granted]
+        if not missing:
+            return
+        print(f"  正在申请额外权限（用于反馈功能）...")
+        for scope in missing:
+            subprocess.run(
+                ["lark-cli", "auth", "login", "--scope", scope],
+                capture_output=False,
+            )
+    except Exception:
+        pass
 
 
 def _get_agents_md_content():
