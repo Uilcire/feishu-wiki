@@ -1,0 +1,73 @@
+# Changelog
+
+## 0.2.6 (2026-04-14)
+
+- 容器页自动同步：`create()`/`delete()` 后自动更新分类容器页面（子页面列表+计数）
+- AI Wiki 根页面自动同步：容器变更后重新生成全局导航
+- `_build_index` 通过 `get_node` API 补全 root `obj_token`
+- `lint()` 新增「容器失同步」检查项
+
+## 0.2.5 (2026-04-14)
+
+- `fw.lint()` 交叉引用审查：断链、孤立页面、来源缺归档、索引缺页
+- 收录规范强化
+
+## 0.2.4 (2026-04-14)
+
+- 日志署名用飞书 mention-user 标签
+
+## 0.2.3 (2026-04-14)
+
+- `compact_log` 保留已有周汇总 + 日志署名加 @
+
+## 0.2.2 (2026-04-14)
+
+- 日志格式优化 + `compact_log()` 压缩旧日志
+
+## 0.2.1 (2026-04-14)
+
+- `fw.delete()` 软删除 — 标记已废弃 + 索引过滤
+
+## 0.2.0 (2026-04-14)
+
+- Agent Skills 标准化 — `src/` layout + 完整 skill 分发
+- 完整 CLI 子命令 + skill manifest + 项目级 SKILL.md
+
+## 0.1.6 (2026-04-14)
+
+- setup 时自动检查并申请 `base:app:create` scope，反馈功能开箱即用
+
+## 0.1.5 (2026-04-14)
+
+- 新增 `fw.feedback()` —— 提交反馈到飞书多维表格，自动附带提交人、版本号、时间戳
+- 新增 CLI 命令 `feedback`：`python3 -m feishu_wiki feedback "内容"`
+- `fw.status()` 返回 `update_available` 字段，Agent 可感知新版本并提醒用户
+
+## 0.1.4 (2026-04-14)
+
+- 新增 `_version_check.py` —— 对比 PyPI 最新版，24h 缓存，2s 超时
+- 新增 CLI 命令 `update`：`python3 -m feishu_wiki update` 一键升级
+
+## 0.1.3 (2026-04-13)
+
+- 新增 `__main__.py` —— 支持 `python3 -m feishu_wiki`，不依赖 PATH
+- README 安装指引更新为 `python3 -m feishu_wiki register`
+
+## 0.1.2 (2026-04-13)
+
+- 学习/贡献模式切换：`feishu-wiki mode read` / `feishu-wiki mode write`
+
+## 0.1.1 (2026-04-12)
+
+- 改进 onboarding 介绍
+- 精简 README
+
+## 0.1.0 (2026-04-12)
+
+- 初始发布
+- `feishu-wiki-register` 一键注册 Claude Code / Codex skill
+- 核心 API：`fw.find`、`fw.fetch`、`fw.create`、`fw.update`、`fw.list_pages`
+- 本地缓存工作拷贝模型（checkout → edit → checkin）
+- 维基链接解析 `[[页面名]]` → `<mention-doc>`
+- 自动 attribution callout
+- 全文搜索：`fw.grep`（本地）、`fw.search_feishu`（飞书 API）
