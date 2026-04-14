@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.9 (2026-04-14)
+
+- 包内打包 `default-config.json`，新用户无需手动创建 `.feishu-config.json`
+- 简化安装流程：只需 `pip install feishu-wiki`
+- onboarding + README 补充 QA 追踪说明
+
 ## 0.2.8 (2026-04-14)
 
 - `log_qa()` 增加 `tools` 参数：记录完整工具链路（name/input/output/error）
