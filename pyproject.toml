@@ -18,6 +18,27 @@ feishu-wiki-register = "feishu_wiki._post_install:run"
 [project.urls]
 Homepage = "https://github.com/Uilcire/feishu-wiki"
 
+[tool.agent-skill]
+name = "feishu-wiki"
+summary = "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用"
+when_to_use = "用户提到 AI Wiki、知识库、收录文章/论文、查询智能体相关知识时"
+instructions = "AGENTS.md"
+cli = "feishu-wiki"
+python = "import feishu_wiki as fw"
+requires = ["lark-cli"]
+capabilities = [
+    "find — 模糊搜索页面",
+    "list — 列出页面（可按分类）",
+    "fetch — 读取页面正文",
+    "link — 获取飞书 URL",
+    "grep — 本地全文搜索",
+    "search — 飞书 API 全文搜索",
+    "create — 创建新页面",
+    "update — 更新现有页面",
+    "feedback — 提交反馈",
+    "status — 缓存状态",
+]
+
 [tool.setuptools.packages.find]
 include = ["feishu_wiki*"]
 

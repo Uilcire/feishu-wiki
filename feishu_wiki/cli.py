@@ -252,6 +252,151 @@ def main():
             print('    "帮我查一下 AI Wiki 有什么内容"')
         print("═" * 55)
 
+    elif args[0] == "find":
+        if len(args) < 2:
+            print("用法: feishu-wiki find <query> [--category CAT]")
+            sys.exit(1)
+        category = None
+        query_parts = []
+        i = 1
+        while i < len(args):
+            if args[i] == "--category" and i + 1 < len(args):
+                category = args[i + 1]
+                i += 2
+            else:
+                query_parts.append(args[i])
+                i += 1
+        query = " ".join(query_parts)
+        from feishu_wiki.core import find
+        result = find(query, category=category)
+        if result:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(json.dumps(None))
+            sys.exit(1)
+
+    elif args[0] == "list":
+        category = None
+        if len(args) >= 3 and args[1] == "--category":
+            category = args[2]
+        from feishu_wiki.core import list_pages
+        pages = list_pages(category=category)
+        print(json.dumps(pages, ensure_ascii=False, indent=2))
+
+    elif args[0] == "fetch":
+        if len(args) < 2:
+            print("用法: feishu-wiki fetch <title> [--fresh]")
+            sys.exit(1)
+        fresh = "--fresh" in args
+        title = " ".join(a for a in args[1:] if a != "--fresh")
+        from feishu_wiki.core import fetch, find
+        page = find(title)
+        if not page:
+            print(f"未找到页面: {title}", file=sys.stderr)
+            sys.exit(1)
+        content = fetch(page, fresh=fresh)
+        print(content)
+
+    elif args[0] == "link":
+        if len(args) < 2:
+            print("用法: feishu-wiki link <title>")
+            sys.exit(1)
+        title = " ".join(args[1:])
+        from feishu_wiki.core import link
+        try:
+            url = link(title)
+            print(url)
+        except Exception as e:
+            print(f"错误: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    elif args[0] == "grep":
+        if len(args) < 2:
+            print("用法: feishu-wiki grep <pattern> [--category CAT]")
+            sys.exit(1)
+        category = None
+        pattern_parts = []
+        i = 1
+        while i < len(args):
+            if args[i] == "--category" and i + 1 < len(args):
+                category = args[i + 1]
+                i += 2
+            else:
+                pattern_parts.append(args[i])
+                i += 1
+        pattern = " ".join(pattern_parts)
+        from feishu_wiki.search import grep
+        results = grep(pattern, category=category)
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+
+    elif args[0] == "search":
+        if len(args) < 2:
+            print("用法: feishu-wiki search <query> [--wiki-only]")
+            sys.exit(1)
+        wiki_only = "--wiki-only" in args
+        query = " ".join(a for a in args[1:] if a != "--wiki-only")
+        from feishu_wiki.search import search_feishu
+        results = search_feishu(query, wiki_only=wiki_only)
+        print(json.dumps(results, ensure_ascii=False, indent=2))
+
+    elif args[0] == "create":
+        category = title = summary = None
+        i = 1
+        while i < len(args):
+            if args[i] == "--category" and i + 1 < len(args):
+                category = args[i + 1]; i += 2
+            elif args[i] == "--title" and i + 1 < len(args):
+                title = args[i + 1]; i += 2
+            elif args[i] == "--summary" and i + 1 < len(args):
+                summary = args[i + 1]; i += 2
+            else:
+                i += 1
+        if not category or not title:
+            print("用法: feishu-wiki create --category CAT --title TITLE [--summary S] <<< content")
+            sys.exit(1)
+        content = sys.stdin.read()
+        if not content.strip():
+            print("错误: 内容为空（通过 stdin 传入）", file=sys.stderr)
+            sys.exit(1)
+        from feishu_wiki.core import create
+        result = create(category, title, content, summary=summary or "")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    elif args[0] == "write":
+        if len(args) < 2:
+            print("用法: feishu-wiki write <title> [--mode append|overwrite] <<< content")
+            sys.exit(1)
+        mode = "append"
+        title_parts = []
+        i = 1
+        while i < len(args):
+            if args[i] == "--mode" and i + 1 < len(args):
+                mode = args[i + 1]; i += 2
+            else:
+                title_parts.append(args[i]); i += 1
+        title = " ".join(title_parts)
+        content = sys.stdin.read()
+        if not content.strip():
+            print("错误: 内容为空（通过 stdin 传入）", file=sys.stderr)
+            sys.exit(1)
+        from feishu_wiki.core import update
+        update(title, content, mode=mode)
+        print(json.dumps({"ok": True, "title": title, "mode": mode}, ensure_ascii=False))
+
+    elif args[0] == "sync":
+        from feishu_wiki.core import sync
+        result = sync()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    elif args[0] == "refresh":
+        from feishu_wiki.core import refresh
+        refresh()
+        print(json.dumps({"ok": True}))
+
+    elif args[0] == "user":
+        from feishu_wiki.core import current_user
+        print(json.dumps(current_user(), ensure_ascii=False, indent=2))
+
     elif args[0] == "status":
         import feishu_wiki as fw
         status = fw.status()
@@ -308,13 +453,28 @@ def main():
     elif args[0] == "help":
         print("用法: feishu-wiki <command>")
         print()
-        print("命令:")
-        print("  setup    一键安装和配置（首次使用）")
-        print("  status   查看 wiki 状态")
-        print("  mode     查看/切换模式（read=学习 / write=贡献）")
-        print("  update   检查并升级到最新版本")
-        print("  feedback 提交反馈或功能建议")
-        print("  help     显示帮助")
+        print("读操作:")
+        print("  find <query>              模糊搜索页面")
+        print("  list [--category CAT]     列出页面")
+        print("  fetch <title> [--fresh]   读取页面正文（markdown）")
+        print("  link <title>              获取飞书 URL")
+        print("  grep <pattern>            本地全文搜索")
+        print("  search <query>            飞书 API 搜索")
+        print()
+        print("写操作:")
+        print("  create --category CAT --title TITLE [--summary S] <<< content")
+        print("  write <title> [--mode append|overwrite] <<< content")
+        print()
+        print("管理:")
+        print("  status     缓存状态")
+        print("  user       当前用户")
+        print("  sync       手动同步")
+        print("  refresh    重建索引")
+        print("  mode       查看/切换模式（read / write）")
+        print("  feedback   提交反馈")
+        print("  setup      一键安装和配置")
+        print("  update     检查并升级版本")
+        print("  help       显示帮助")
 
     else:
         print(f"未知命令: {args[0]}")

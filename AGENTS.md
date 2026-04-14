@@ -41,12 +41,47 @@ with fw.lock():
     fw.update("相关主题", "补充段落")
     fw.update("相关实体", "新增事实")
 
+# 反馈
+fw.feedback("希望支持批量导入")   # 提交反馈到飞书多维表格
+
 # 元操作
 fw.status()              # 缓存状态
 fw.current_user()        # 当前用户 {name, open_id}
 fw.resolve_wikilinks()   # [[页面名]] → <mention-doc>
 fw.refresh()             # 强制重建索引
 ```
+
+## CLI 命令
+
+所有 `fw.*` API 都有对应的 CLI 命令，适用于非 Python 环境或 shell 脚本：
+
+```bash
+# 读
+feishu-wiki find "RAG"                          # 模糊搜索页面（JSON）
+feishu-wiki list                                # 列出所有页面
+feishu-wiki list --category 主题                # 按分类列出
+feishu-wiki fetch "检索增强生成（RAG）"           # 读取页面正文（markdown）
+feishu-wiki link "检索增强生成（RAG）"            # 获取飞书 URL
+feishu-wiki grep "关键词"                        # 本地全文搜索
+feishu-wiki search "关键词"                      # 飞书 API 搜索
+feishu-wiki search "关键词" --wiki-only          # 只搜知识库页面
+
+# 写
+feishu-wiki create --category 主题 --title "页面标题" --summary "摘要" <<< "内容"
+feishu-wiki write "页面标题" <<< "追加内容"
+feishu-wiki write "页面标题" --mode overwrite <<< "全部新内容"
+
+# 反馈
+feishu-wiki feedback "希望支持批量导入"
+
+# 元操作
+feishu-wiki status                              # 缓存状态
+feishu-wiki user                                # 当前用户
+feishu-wiki sync                                # 手动同步
+feishu-wiki refresh                             # 重建索引
+```
+
+CLI 输出默认 JSON（方便 Agent 解析），`fetch` 输出 markdown 原文。
 
 ## 存储架构
 
