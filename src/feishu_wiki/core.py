@@ -99,6 +99,15 @@ def current_user() -> dict:
     return _current_user()
 
 
+def _format_user_mention(user: dict) -> str:
+    """格式化用户为飞书 mention 标签。"""
+    name = user.get("name", "未知")
+    open_id = user.get("open_id", "")
+    if open_id:
+        return f'<mention-user id="{open_id}">{name}</mention-user>'
+    return name
+
+
 # === 文件名 / 路径工具 ===
 
 
@@ -905,14 +914,14 @@ def append_log(action: str, title: str, mode: str = "", reason: str = "") -> Non
     _ensure_cache()
     today = datetime.now().strftime("%Y-%m-%d")
     user = _current_user()
-    user_name = user.get("name", "")
+    user_mention = _format_user_mention(user)
 
     # 构建日志行：- 页面标题 (补充信息)
     extra = mode or reason
     line = f"- {title} ({extra})\n" if extra else f"- {title}\n"
 
     # 本次 section 标题
-    section_header = f"## [{today}] {action} · @{user_name}\n"
+    section_header = f"## [{today}] {action} · {user_mention}\n"
 
     if LOG_FILE.exists():
         existing = LOG_FILE.read_text(encoding="utf-8")
