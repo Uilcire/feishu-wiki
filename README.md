@@ -14,8 +14,10 @@
 ## 安装
 
 ```bash
-pip install feishu-wiki && feishu-wiki setup
+pip install feishu-wiki
 ```
+
+首次 `import feishu_wiki` 时会自动检查 lark-cli、注册 Agent skill、显示项目须知。
 
 ### 前置条件
 
