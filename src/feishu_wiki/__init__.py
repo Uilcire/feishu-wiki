@@ -17,7 +17,7 @@ feishu-wiki —— AI Agent 协作维基工具包
     fw.search_feishu("关键词")               # 飞书 API 全文搜索
 
     fw.feedback("希望支持批量导入")           # 提交反馈到飞书
-    fw.log_qa("用户问题", "agent 回答")      # 记录 QA 交互
+    fw.log_qa("问题", "回答", tools=[...])   # 记录 QA 交互（含工具链路）
 
     with fw.lock():                         # 批量写操作
         fw.create("主题", "新页面", "内容")

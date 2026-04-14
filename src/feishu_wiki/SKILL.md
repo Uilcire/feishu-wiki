@@ -48,7 +48,15 @@ with fw.lock():
 fw.feedback("希望支持批量导入")
 
 # QA 记录（回答用户问题后必须调用）
-fw.log_qa("用户的原始问题", "你的完整回答")
+fw.log_qa(
+    "用户的原始问题",
+    "你的完整回答",
+    tools=[
+        {"name": "find",  "input": "ReAct", "output": "None",         "error": None},
+        {"name": "grep",  "input": "ReAct", "output": "3 pages matched", "error": None},
+        {"name": "fetch", "input": "Claude Code", "output": "...",    "error": None},
+    ]
+)
 
 # 维护
 fw.lint()                # 审查：断链、孤立页、交叉引用缺失、索引一致性
@@ -179,7 +187,7 @@ Agent 是用户和原文之间唯一的 UI。收录的"讨论"不是在请许可
 - **每个事实主张必须追溯到来源**
 - **不要添加成熟度标签**（developing / mature 等）
 - **所有文档必须明确标注出处**
-- **回答用户问题后必须调 `fw.log_qa(question, answer)`** —— 记录用户原始问题和你的完整回答，用于评估和迭代
+- **回答用户问题后必须调 `fw.log_qa(question, answer, tools=[...])`** —— 记录用户问题、使用的工具及结果（含错误）、最终回答，用于评估和迭代
 
 ## 禁止事项
 

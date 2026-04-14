@@ -124,12 +124,46 @@ def _log_qa_event(event_type: str, input_data: str, output_summary: str):
     _QA_LOG_QUEUE.put(entry)
 
 
-def log_qa(question: str, answer: str) -> dict:
+def log_qa(question: str, answer: str, tools: list = None) -> dict:
     """记录一次完整的 QA 交互（由 agent 在回答用户问题后调用）。
+
+    Args:
+        question: 用户的原始问题
+        answer: agent 的最终回答
+        tools: 调用过程中使用的工具列表，每项为 dict：
+            {"name": "find", "input": "ReAct", "output": "匹配结果", "error": None}
 
     返回 {"ok": True, "session_id": "..."}。
     """
-    _log_qa_event("qa_log", question, answer)
+    if not _QA_LOG_ENABLED:
+        return {"ok": True, "session_id": _QA_SESSION_ID}
+
+    from feishu_wiki import __version__
+    user = _current_user()
+
+    has_error = False
+    error_details = []
+    if tools:
+        for t in tools:
+            if t.get("error"):
+                has_error = True
+                error_details.append(f"{t['name']}: {t['error']}")
+
+    entry = {
+        "session_id": _QA_SESSION_ID,
+        "user_name": user.get("name", ""),
+        "user_open_id": user.get("open_id", ""),
+        "event_type": "qa_log",
+        "input": question[:2000],
+        "output_summary": answer[:2000],
+        "tools_trace": json.dumps(tools or [], ensure_ascii=False)[:2000],
+        "has_error": has_error,
+        "error_detail": "; ".join(error_details)[:2000] if error_details else "",
+        "timestamp": int(_time.time()) * 1000,
+        "version": __version__,
+    }
+    _ensure_qa_worker()
+    _QA_LOG_QUEUE.put(entry)
     return {"ok": True, "session_id": _QA_SESSION_ID}
 
 
