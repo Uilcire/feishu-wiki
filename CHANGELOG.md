@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.8 (2026-04-14)
+
+- `log_qa()` 增加 `tools` 参数：记录完整工具链路（name/input/output/error）
+- Base 新增 `tools_trace`、`has_error`、`error_detail` 字段
+
 ## 0.2.7 (2026-04-14)
 
 - QA 追踪：`find`/`fetch`/`grep`/`search_feishu` 自动埋点到飞书 Base
