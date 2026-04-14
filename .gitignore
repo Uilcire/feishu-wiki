@@ -15,5 +15,8 @@ build/
 .vscode/
 .idea/
 
+# Changelog（本地维护）
+CHANGELOG.md
+
 # Claude Code session data
  /

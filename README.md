@@ -55,6 +55,30 @@ Agent ─────→ import feishu_wiki as fw
 飞书知识库 ──→ 存储后端 + 浏览界面
 ```
 
+## 反馈
+
+有需求或改进建议？告诉你的 Agent：
+
+```
+"帮我提交一条反馈：希望支持批量导入"
+```
+
+或直接调用：
+
+```bash
+python3 -m feishu_wiki feedback "你的反馈内容"
+```
+
+反馈会自动提交到飞书多维表格，附带提交人、版本号和时间戳。
+
+## 更新
+
+```bash
+python3 -m feishu_wiki update
+```
+
+Agent 也会在调用 `fw.status()` 时自动检测新版本并提醒你。
+
 ## 重要规则
 
 - 所有页面由 AI Agent 编写维护，**不要在飞书 UI 里直接编辑**
