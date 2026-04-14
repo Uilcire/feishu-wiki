@@ -114,61 +114,69 @@ def _ensure_scopes():
         pass
 
 
-def _get_agents_md_content():
-    """获取 AGENTS.md 的内容（从包内读取）。"""
-    # 尝试从包目录的上级找 AGENTS.md
+def _get_skill_content():
+    """获取 SKILL.md 的内容（从包内读取）。"""
     pkg_dir = Path(__file__).parent
-    agents_md = pkg_dir.parent / "AGENTS.md"
-    if agents_md.exists():
-        return agents_md.read_text(encoding="utf-8")
+    skill_md = pkg_dir.parent / "SKILL.md"
+    if skill_md.exists():
+        return skill_md.read_text(encoding="utf-8")
 
     # fallback：从安装的包数据中读取
     try:
         import importlib.resources as pkg_resources
-        return pkg_resources.read_text("feishu_wiki", "AGENTS.md")
+        return pkg_resources.read_text("feishu_wiki", "SKILL.md")
     except Exception:
         pass
 
-    # 最后 fallback：返回简短指引
     return (
         "# AI Wiki\n\n"
         "使用 `import feishu_wiki as fw` 操作 AI Wiki 知识库。\n"
-        "完整文档：https://github.com/Uilcire/feishu-wiki/blob/main/AGENTS.md\n"
+        "完整文档：https://github.com/Uilcire/feishu-wiki\n"
     )
 
 
 def _setup_agent():
-    """检测 Agent 环境并注册 SKILL.md。"""
-    from feishu_wiki.onboarding import _build_skill_content
-    skill_content = _build_skill_content()
+    """检测 Agent 环境并注册完整 skill 文件夹。"""
+    pkg_dir = Path(__file__).parent  # feishu_wiki/ 包目录
     registered = []
 
-    # Claude Code: ~/.claude/skills/feishu-wiki/SKILL.md
+    def _copy_skill_to(skill_dir: Path):
+        """将包内 skill 数据复制到目标目录。"""
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        # SKILL.md
+        src = pkg_dir / "SKILL.md"
+        if src.exists():
+            shutil.copy2(src, skill_dir / "SKILL.md")
+        # 子目录：templates/, references/, agents/
+        for subdir in ("templates", "references", "agents"):
+            src_dir = pkg_dir / subdir
+            dst_dir = skill_dir / subdir
+            if src_dir.is_dir():
+                if dst_dir.exists():
+                    shutil.rmtree(dst_dir)
+                shutil.copytree(src_dir, dst_dir)
+
+    # Claude Code: ~/.claude/skills/feishu-wiki/
     claude_dir = Path.home() / ".claude"
     if claude_dir.exists() or shutil.which("claude"):
         skill_dir = claude_dir / "skills" / "feishu-wiki"
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
-        print(f"  ✅ Claude Code：已注册 skill → {skill_dir / 'SKILL.md'}")
+        _copy_skill_to(skill_dir)
+        print(f"  ✅ Claude Code：已注册 skill → {skill_dir}")
         registered.append("claude")
 
-    # Codex: ~/.codex/skills/feishu-wiki/SKILL.md
+    # Codex: ~/.codex/skills/feishu-wiki/
     codex_dir = Path.home() / ".codex"
     if codex_dir.exists() or shutil.which("codex"):
         skill_dir = codex_dir / "skills" / "feishu-wiki"
-        skill_dir.mkdir(parents=True, exist_ok=True)
-        (skill_dir / "SKILL.md").write_text(skill_content, encoding="utf-8")
-        print(f"  ✅ Codex：已注册 skill → {skill_dir / 'SKILL.md'}")
+        _copy_skill_to(skill_dir)
+        print(f"  ✅ Codex：已注册 skill → {skill_dir}")
         registered.append("codex")
 
     if not registered:
-        # 未检测到特定 agent，创建 AGENTS.md
-        agents_md = Path.cwd() / "AGENTS.md"
-        if not agents_md.exists():
-            agents_md.write_text(_get_agents_md_content(), encoding="utf-8")
-            print(f"  ✅ 已创建 {agents_md}（通用 Agent 指令文件）")
-        else:
-            print(f"  ⚠️ {agents_md} 已存在，跳过写入")
+        # 未检测到特定 agent，复制到当前目录
+        skill_dir = Path.cwd() / "feishu-wiki-skill"
+        _copy_skill_to(skill_dir)
+        print(f"  ✅ 已创建 {skill_dir}（通用 skill 文件夹）")
         registered.append("generic")
 
     return registered[0] if registered else "generic"

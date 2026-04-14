@@ -1,0 +1,20 @@
+# Claude Code adapter
+# Install: copy/symlink skill folder to ~/.claude/skills/feishu-wiki/
+# Or project-level: .claude/skills/feishu-wiki/
+
+discovery:
+  paths:
+    - ~/.claude/skills/feishu-wiki/
+    - .claude/skills/feishu-wiki/
+
+policy:
+  allow_implicit_invocation: true
+  trigger_phrases:
+    - "AI Wiki"
+    - "知识库"
+    - "收录"
+    - "查询智能体"
+
+invoke:
+  python: "import feishu_wiki as fw"
+  cli: "feishu-wiki"

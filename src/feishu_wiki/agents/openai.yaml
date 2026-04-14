@@ -1,0 +1,19 @@
+# OpenAI Codex adapter
+# Install: copy/symlink skill folder to ~/.codex/skills/feishu-wiki/
+# Or repo-level: .agents/skills/feishu-wiki/
+
+discovery:
+  paths:
+    - ~/.codex/skills/feishu-wiki/
+    - .agents/skills/feishu-wiki/
+
+policy:
+  allow_implicit_invocation: true
+
+invoke:
+  python: "import feishu_wiki as fw"
+  cli: "feishu-wiki"
+
+notes: |
+  Codex runs in a sandbox. Ensure feishu-wiki is pip-installed
+  in the environment and lark-cli is available on PATH.

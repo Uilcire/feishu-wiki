@@ -14,12 +14,8 @@
 ## 安装
 
 ```bash
-pip install feishu-wiki && python3 -m feishu_wiki register
+pip install feishu-wiki && feishu-wiki setup
 ```
-
-就这一行。它会：
-1. 安装 Python 包
-2. 自动注册为 Claude Code / Codex 的 skill
 
 ### 前置条件
 
@@ -39,6 +35,34 @@ pip install feishu-wiki && python3 -m feishu_wiki register
 ```
 
 Agent 会自动调用 `feishu_wiki` 来操作。你不需要写代码。
+
+## 项目结构
+
+本项目遵循 [Agent Skills 标准](https://code.claude.com/docs/en/agent-sdk/skills)：
+
+```
+feishu-wiki/
+├── SKILL.md              # 核心 Agent 操作手册（YAML frontmatter + 指令）
+├── feishu_wiki/           # Python 包（API + CLI）
+├── scripts/               # 辅助脚本
+├── references/            # 架构文档
+├── templates/             # 页面结构模板
+├── agents/                # 平台适配（Claude Code / Codex）
+├── pyproject.toml
+└── README.md
+```
+
+### 跨 Agent 使用
+
+复制或符号链接到对应 Agent 的 skills 目录：
+
+| Agent | 安装路径 |
+|-------|---------|
+| Claude Code | `~/.claude/skills/feishu-wiki/` |
+| Codex | `~/.codex/skills/feishu-wiki/` |
+| Cursor | `~/.cursor/skills/feishu-wiki/` |
+
+或运行 `feishu-wiki setup` 自动注册。
 
 ## 架构
 
@@ -63,21 +87,13 @@ Agent ─────→ import feishu_wiki as fw
 "帮我提交一条反馈：希望支持批量导入"
 ```
 
-或直接调用：
-
-```bash
-python3 -m feishu_wiki feedback "你的反馈内容"
-```
-
-反馈会自动提交到飞书多维表格，附带提交人、版本号和时间戳。
+或直接调用：`feishu-wiki feedback "你的反馈内容"`
 
 ## 更新
 
 ```bash
-python3 -m feishu_wiki update
+feishu-wiki update
 ```
-
-Agent 也会在调用 `fw.status()` 时自动检测新版本并提醒你。
 
 ## 重要规则
 
@@ -85,7 +101,7 @@ Agent 也会在调用 `fw.status()` 时自动检测新版本并提醒你。
 - 可以在飞书里浏览和评论，但修改请告诉你的 Agent
 - 每个主张必须有来源，不允许无出处的断言
 
-详细操作手册见 [AGENTS.md](AGENTS.md)。
+详细操作手册见 [SKILL.md](SKILL.md)。
 
 ## License
 

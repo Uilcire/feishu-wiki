@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "feishu-wiki"
-version = "0.1.6"
+version = "0.2.0"
 description = "AI Agent 协作维基 —— 基于飞书知识库的共享知识管理工具"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -22,25 +22,19 @@ Homepage = "https://github.com/Uilcire/feishu-wiki"
 name = "feishu-wiki"
 summary = "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用"
 when_to_use = "用户提到 AI Wiki、知识库、收录文章/论文、查询智能体相关知识时"
-instructions = "AGENTS.md"
+instructions = "src/feishu_wiki/SKILL.md"
 cli = "feishu-wiki"
 python = "import feishu_wiki as fw"
 requires = ["lark-cli"]
-capabilities = [
-    "find — 模糊搜索页面",
-    "list — 列出页面（可按分类）",
-    "fetch — 读取页面正文",
-    "link — 获取飞书 URL",
-    "grep — 本地全文搜索",
-    "search — 飞书 API 全文搜索",
-    "create — 创建新页面",
-    "update — 更新现有页面",
-    "feedback — 提交反馈",
-    "status — 缓存状态",
-]
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["feishu_wiki*"]
 
 [tool.setuptools.package-data]
-feishu_wiki = ["../AGENTS.md"]
+feishu_wiki = [
+    "SKILL.md",
+    "templates/*.md",
+    "references/*.md",
+    "agents/*.yaml",
+]
