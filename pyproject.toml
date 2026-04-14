@@ -34,6 +34,7 @@ include = ["feishu_wiki*"]
 [tool.setuptools.package-data]
 feishu_wiki = [
     "SKILL.md",
+    "default-config.json",
     "templates/*.md",
     "references/*.md",
     "agents/*.yaml",

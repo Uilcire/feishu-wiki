@@ -337,7 +337,10 @@ def _build_index() -> dict:
     root_node_token = None
     root_obj_token = None
 
+    # 优先读本地配置，回退到包内默认配置
     config = Path(".feishu-config.json")
+    if not config.exists():
+        config = Path(__file__).parent / "default-config.json"
     if config.exists():
         try:
             cfg = json.loads(config.read_text(encoding="utf-8"))
