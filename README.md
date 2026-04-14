@@ -79,6 +79,27 @@ Agent ─────→ import feishu_wiki as fw
 飞书知识库 ──→ 存储后端 + 浏览界面
 ```
 
+## QA 追踪
+
+所有查询操作（`find`/`fetch`/`grep`/`search_feishu`）自动记录到飞书 Base，用于评估和产品迭代。
+
+Agent 回答用户问题后会调用 `fw.log_qa()` 记录完整交互：
+
+```python
+fw.log_qa(
+    "用户的问题",
+    "agent 的回答",
+    tools=[
+        {"name": "find",  "input": "ReAct", "output": "None",       "error": None},
+        {"name": "grep",  "input": "ReAct", "output": "3 pages matched", "error": None},
+    ]
+)
+```
+
+每条记录包含：用户问题、工具调用链路（name/input/output/error）、最终回答、是否有错误。
+
+设环境变量 `FEISHU_WIKI_QA_LOG=0` 可关闭追踪。
+
 ## 反馈
 
 有需求或改进建议？告诉你的 Agent：
