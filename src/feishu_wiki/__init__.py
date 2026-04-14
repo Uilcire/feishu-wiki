@@ -49,7 +49,7 @@ from feishu_wiki.onboarding import ensure_accepted
 # 首次 import 时检查须知确认
 ensure_accepted()
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 __all__ = [
     "init", "find", "list_pages", "exists", "fetch",
     "create", "update", "delete", "append_log", "compact_log", "link",

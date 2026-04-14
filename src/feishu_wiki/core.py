@@ -912,7 +912,7 @@ def append_log(action: str, title: str, mode: str = "", reason: str = "") -> Non
     line = f"- {title} ({extra})\n" if extra else f"- {title}\n"
 
     # 本次 section 标题
-    section_header = f"## [{today}] {action} · {user_name}\n"
+    section_header = f"## [{today}] {action} · @{user_name}\n"
 
     if LOG_FILE.exists():
         existing = LOG_FILE.read_text(encoding="utf-8")
@@ -962,12 +962,15 @@ def compact_log(days: int = 7) -> str:
     if current_header:
         sections.append((current_date, current_header, current_body))
 
-    # 分割：最近 N 天 vs 更早
+    # 分割：已压缩的周汇总 / 最近 N 天 / 更早
     cutoff = (datetime.now() - __import__("datetime").timedelta(days=days)).strftime("%Y-%m-%d")
+    existing_summaries = []  # 已压缩的周汇总，原样保留
     recent = []
     old = []
     for date_str, header, body in sections:
-        if date_str >= cutoff:
+        if "周汇总" in header:
+            existing_summaries.append((date_str, header, body))
+        elif date_str >= cutoff:
             recent.append((date_str, header, body))
         else:
             old.append((date_str, header, body))
@@ -1037,6 +1040,12 @@ def compact_log(days: int = 7) -> str:
 
     # 生成汇总
     summary_parts = ["# 日志\n"]
+
+    # 先保留已有的周汇总
+    for _, header, body in existing_summaries:
+        summary_parts.append(header + "\n" + "\n".join(body).strip() + "\n")
+
+    # 新生成的周汇总
     for week_start in sorted(weekly.keys()):
         week_end_dt = datetime.strptime(week_start, "%Y-%m-%d") + __import__("datetime").timedelta(days=6)
         week_end = week_end_dt.strftime("%Y-%m-%d")
@@ -1049,7 +1058,7 @@ def compact_log(days: int = 7) -> str:
                     unique = list(dict.fromkeys(pages))  # 去重保序
                     parts_list.append(f"{act} {len(unique)} 页")
             if parts_list:
-                summary_parts.append(f"- {user}：{'，'.join(parts_list)}\n")
+                summary_parts.append(f"- @{user}：{'，'.join(parts_list)}\n")
         summary_parts.append("")
 
     # 拼接：汇总 + 最近明细
