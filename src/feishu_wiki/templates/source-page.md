@@ -6,6 +6,7 @@
 <callout emoji="📌" background-color="light-blue">
 **原文**（paper/article/gist/wiki）：[标题](URL)
 **作者**：xxx  |  **日期**：YYYY-MM-DD
+**收录人**：@用户名  |  **收录日期**：YYYY-MM-DD
 </callout>
 
 ## 核心要点

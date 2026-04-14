@@ -409,6 +409,11 @@ def main():
         compact_log(days=days)
         print(json.dumps({"ok": True, "days_kept": days}))
 
+    elif args[0] == "lint":
+        from feishu_wiki.core import lint
+        result = lint()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
     elif args[0] == "user":
         from feishu_wiki.core import current_user
         print(json.dumps(current_user(), ensure_ascii=False, indent=2))

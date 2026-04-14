@@ -1084,6 +1084,157 @@ def compact_log(days: int = 7) -> str:
     return result
 
 
+def lint() -> dict:
+    """审查维基健康状况：断链、孤立页面、交叉引用缺失。
+
+    返回 {"ok": bool, "stats": {...}, "issues": [...]}
+    每个 issue 是 {"type": str, "page": str, "detail": str}
+    """
+    _ensure_cache()
+    pages = list_pages()
+    all_with_dep = list_pages(include_deprecated=True)
+
+    # 按分类分组
+    by_cat = {}
+    for p in pages:
+        cat = p.get("category") or "无分类"
+        by_cat.setdefault(cat, []).append(p)
+
+    # token → title 映射
+    token_map = {p.get("obj_token", ""): p["title"] for p in all_with_dep if p.get("obj_token")}
+
+    def _get_refs(title: str) -> set:
+        """获取页面中引用的所有维基页面标题。"""
+        try:
+            content = fetch(title)
+        except Exception:
+            return set()
+        refs = set()
+        for t in re.findall(r"\[\[([^\]|]+?)(?:\|[^\]]+?)?\]\]", content):
+            refs.add(t.strip())
+        for token, display in re.findall(
+            r'<mention-doc[^>]*token="([^"]+)"[^>]*>([^<]+)</mention-doc>', content
+        ):
+            refs.add(token_map.get(token, display.strip()))
+        return refs
+
+    issues = []
+
+    # 1. 断链
+    all_titles = {p["title"] for p in all_with_dep}
+    for p in pages:
+        refs = _get_refs(p["title"])
+        for ref in refs:
+            if ref not in all_titles:
+                issues.append({
+                    "type": "断链",
+                    "page": p["title"],
+                    "detail": f"引用了不存在的页面 [[{ref}]]",
+                })
+
+    # 2. 孤立页面（无入链）
+    inlinks = {p["title"]: 0 for p in pages}
+    for p in pages:
+        for ref in _get_refs(p["title"]):
+            if ref in inlinks:
+                inlinks[ref] += 1
+    skip_titles = {"索引", "日志", "队列"}
+    for title, count in inlinks.items():
+        if count == 0 and title not in skip_titles:
+            issues.append({
+                "type": "孤立",
+                "page": title,
+                "detail": "没有任何页面引用此页",
+            })
+
+    # 3. 来源页交叉引用检查
+    source_refs = {}
+    for p in by_cat.get("来源", []):
+        refs = _get_refs(p["title"])
+        source_refs[p["title"]] = refs
+        # 引用的页面按分类归类
+        ref_cats = set()
+        for ref in refs:
+            for pp in pages:
+                if pp["title"] == ref:
+                    ref_cats.add(pp.get("category", ""))
+        # 来源页应引用原始资料
+        if not any(c and "原始资料" in c for c in ref_cats):
+            issues.append({
+                "type": "来源缺归档",
+                "page": p["title"],
+                "detail": "来源页未引用对应的原始资料归档",
+            })
+        # 来源页应引用至少一个主题或实体
+        has_topic_or_entity = any(c in ("主题", "实体") for c in ref_cats) or \
+                              any(c and ("主题" in c or "实体" in c) for c in ref_cats)
+        if not has_topic_or_entity:
+            issues.append({
+                "type": "来源缺主题/实体",
+                "page": p["title"],
+                "detail": "来源页未引用任何主题或实体页面",
+            })
+
+    # 4. 主题/实体应被至少一个来源页引用
+    for cat in ("主题", "实体"):
+        for p in by_cat.get(cat, []):
+            referrers = [s for s, refs in source_refs.items() if p["title"] in refs]
+            if not referrers:
+                issues.append({
+                    "type": f"{cat}无来源",
+                    "page": p["title"],
+                    "detail": f"{cat}页未被任何来源页引用",
+                })
+
+    # 5. 索引页一致性：索引页中列出的页面 vs 实际存在的页面
+    try:
+        index_content = fetch("索引")
+        # 提取索引页中 mention 的所有页面
+        indexed_tokens = set(
+            t for t, _ in re.findall(
+                r'<mention-doc[^>]*token="([^"]+)"[^>]*>([^<]+)</mention-doc>',
+                index_content,
+            )
+        )
+        indexed_titles = {token_map.get(t, "") for t in indexed_tokens} - {""}
+        # 实际应在索引中的页面（排除原始资料和系统页）
+        should_be_indexed = {
+            p["title"] for p in pages
+            if p.get("category")
+            and "原始资料" not in p.get("category", "")
+            and p["title"] not in skip_titles
+        }
+        missing_from_index = should_be_indexed - indexed_titles
+        for title in sorted(missing_from_index):
+            cat = next((p.get("category", "") for p in pages if p["title"] == title), "")
+            issues.append({
+                "type": "索引缺页",
+                "page": title,
+                "detail": f"[{cat}] 页面存在但未在索引页中列出",
+            })
+    except Exception:
+        pass
+
+    # 统计
+    from collections import Counter
+    cats = Counter(p.get("category") or "无分类" for p in pages)
+    stats = {
+        "total": len(pages),
+        "deprecated": len(all_with_dep) - len(pages),
+        "categories": dict(sorted(cats.items())),
+        "issues": len(issues),
+    }
+
+    ok = len(issues) == 0
+
+    # 输出摘要
+    print(f"[fw] lint: {stats['total']} 页, {stats['deprecated']} 废弃, {len(issues)} 个问题", file=sys.stderr)
+    for issue in issues:
+        print(f"  [{issue['type']}] {issue['page']}: {issue['detail']}", file=sys.stderr)
+
+    return {"ok": ok, "stats": stats, "issues": issues}
+
+
 # === 同步 ===
 
 

@@ -1,6 +1,6 @@
 ---
 name: feishu-wiki
-version: 0.2.4
+version: 0.2.5
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。当用户提到 AI Wiki、知识库、收录文章/论文、查询智能体相关知识时使用。"
 metadata:
   requires:
@@ -47,6 +47,10 @@ with fw.lock():
 # 反馈
 fw.feedback("希望支持批量导入")
 
+# 维护
+fw.lint()                # 审查：断链、孤立页、交叉引用缺失、索引一致性
+fw.compact_log(days=7)   # 压缩 7 天前的日志为周汇总
+
 # 元操作
 fw.status()              # 缓存状态
 fw.current_user()        # 当前用户 {name, open_id}
@@ -70,6 +74,10 @@ feishu-wiki create --category 主题 --title "页面标题" --summary "摘要" <
 feishu-wiki write "页面标题" <<< "追加内容"
 feishu-wiki write "页面标题" --mode overwrite <<< "全部新内容"
 feishu-wiki delete "页面标题" --reason "已合并到其他页面"
+
+# 维护
+feishu-wiki lint
+feishu-wiki compact-log [--days 7]
 
 # 反馈
 feishu-wiki feedback "希望支持批量导入"
@@ -114,12 +122,25 @@ Agent 是用户和原文之间唯一的 UI。收录的"讨论"不是在请许可
 4. **批量写入**（使用 `with fw.lock()` 一次拿锁）：
    ```python
    with fw.lock():
+       # a. 归档原文
        fw.create("原始资料/论文", "标题（原文）", 原文内容, summary="原文归档")
-       existing = fw.find("相关主题")
+       # b. 创建来源页（引用归档 + 相关主题/实体）
        fw.create("来源", "标题", 笔记, summary="一句话摘要")
+       # c. 更新相关主题/实体页面
        fw.update("相关主题", "补充内容")
+       # d. 更新索引页（添加新建的来源/主题/实体）
+       fw.update("索引", 索引条目)
    ```
 5. **写 summary**：每个新建页面的 `summary` 参数必须填写
+6. **收录后跑 `fw.lint()`**：确认无断链、无孤立页、索引已更新
+
+#### 交叉引用必须完整
+
+每次收录或更新后，确保以下引用链完整：
+- **来源 → 原始资料**：来源页底部必须有 `## 原文归档` 链接到归档页
+- **来源 → 主题/实体**：来源页必须引用至少一个主题或实体页面
+- **主题/实体 ← 来源**：每个主题/实体应被至少一个来源页引用
+- **索引页**：所有来源、主题、实体页面必须在索引页中列出
 
 页面结构模板见 `templates/` 目录。
 
@@ -133,10 +154,16 @@ Agent 是用户和原文之间唯一的 UI。收录的"讨论"不是在请许可
 
 ### 审查（Lint）
 
-1. `fw.list_pages()` 全量扫描
-2. 按需 `fw.fetch()` 抽读
-3. 检查：矛盾、过时主张、孤立页面、断链、缺失页面、重复 callout
-4. `fw.update()` 修复问题
+调用 `fw.lint()` 自动检查：
+- **断链**：`[[xxx]]` 或 `<mention-doc>` 指向不存在的页面
+- **孤立页面**：没有任何页面引用的页面
+- **来源缺归档**：来源页未链接对应的原始资料
+- **来源缺主题/实体**：来源页未引用任何主题或实体页面
+- **主题/实体无来源**：主题或实体页未被任何来源页引用
+- **索引缺页**：页面存在但未在索引页中列出
+
+发现问题后用 `fw.update()` 修复，再跑一次 `fw.lint()` 验证。
+审查结束后调 `fw.compact_log()` 压缩旧日志。
 
 ## 约定
 
