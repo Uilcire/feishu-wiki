@@ -330,14 +330,17 @@ def _build_index() -> dict:
                     "summary": "",
                 }
 
-    # 5. 保留旧索引中的 summary
+    # 5. 保留旧索引中的 summary 和 deprecated 标记
     if INDEX_FILE.exists():
         try:
             old_index = json.loads(INDEX_FILE.read_text(encoding="utf-8"))
             old_pages = old_index.get("pages", {})
             for title, info in pages.items():
-                if title in old_pages and old_pages[title].get("summary"):
-                    info["summary"] = old_pages[title]["summary"]
+                if title in old_pages:
+                    if old_pages[title].get("summary"):
+                        info["summary"] = old_pages[title]["summary"]
+                    if old_pages[title].get("deprecated"):
+                        info["deprecated"] = True
         except Exception:
             pass
 
@@ -489,19 +492,25 @@ def _mark_dirty_log() -> None:
 # === 查找 / 读取 ===
 
 
-def find(query: str, category: Optional[str] = None) -> Optional[dict]:
-    """按标题查找页面。精确匹配优先，回退到包含匹配。自动刷新过期索引。"""
+def find(query: str, category: Optional[str] = None, include_deprecated: bool = False) -> Optional[dict]:
+    """按标题查找页面。精确匹配优先，回退到包含匹配。自动刷新过期索引。
+    默认跳过已废弃页面，传 include_deprecated=True 可包含。
+    """
     _ensure_cache()
     index = _refresh_index_if_stale()
     pages = index.get("pages", {})
 
     if query in pages:
         page = pages[query]
-        if category is None or page.get("category") == category:
+        if not include_deprecated and page.get("deprecated"):
+            pass
+        elif category is None or page.get("category") == category:
             return {**page, "title": query}
 
     matches = []
     for title, info in pages.items():
+        if not include_deprecated and info.get("deprecated"):
+            continue
         if category is not None and info.get("category") != category:
             continue
         if query in title or title in query:
@@ -513,12 +522,16 @@ def find(query: str, category: Optional[str] = None) -> Optional[dict]:
     return None
 
 
-def list_pages(category: Optional[str] = None) -> list:
-    """列出所有页面（可按分类过滤）。自动刷新过期索引。"""
+def list_pages(category: Optional[str] = None, include_deprecated: bool = False) -> list:
+    """列出所有页面（可按分类过滤）。自动刷新过期索引。
+    默认跳过已废弃页面，传 include_deprecated=True 可包含。
+    """
     _ensure_cache()
     index = _refresh_index_if_stale()
     result = []
     for title, info in index.get("pages", {}).items():
+        if not include_deprecated and info.get("deprecated"):
+            continue
         if category is None or info.get("category") == category:
             result.append({"title": title, **info})
     return result
@@ -819,6 +832,66 @@ def update(page_or_title, content: str, mode: str = "append", summary: str = "")
     else:
         with lock():
             _do_update()
+
+
+def delete(page_or_title, reason: str = "") -> None:
+    """软删除页面：在正文顶部插入 [已废弃] callout，索引中标记 deprecated。
+
+    已废弃的页面不会出现在 find() / list_pages() 的默认结果中。
+    不会从飞书删除页面，只是标记。
+    """
+    from feishu_wiki.lock import _is_locked, lock
+
+    _check_write_permission()
+    _ensure_cache()
+
+    if isinstance(page_or_title, dict):
+        title = page_or_title.get("title", "")
+    else:
+        title = page_or_title
+
+    def _do_delete():
+        page = find(title, include_deprecated=True)
+        if not page:
+            raise ValueError(f"找不到页面: {title}")
+
+        if page.get("deprecated"):
+            print(f"[fw] 页面「{title}」已经是废弃状态，跳过", file=sys.stderr)
+            return
+
+        current = fetch(title, fresh=True)
+
+        reason_text = f"\n**原因**：{reason}" if reason else ""
+        today = datetime.now().strftime("%Y-%m-%d")
+        deprecation_callout = (
+            f'<callout emoji="🗑️" background-color="red-background">\n'
+            f'**[已废弃]**（{today}）{reason_text}\n'
+            f'此页面已停用，内容仅供历史参考。\n'
+            f'</callout>\n\n'
+        )
+
+        new_content = deprecation_callout + current
+
+        obj_token = page.get("obj_token", "")
+        if not obj_token:
+            raise ValueError(f"页面 {title} 没有 obj_token")
+        _upload_page(title, obj_token, new_content)
+
+        _doc_cache_path(title).write_text(new_content, encoding="utf-8")
+
+        # 索引中标记 deprecated
+        index = _load_index()
+        if title in index.get("pages", {}):
+            index["pages"][title]["deprecated"] = True
+            _save_index(index)
+
+        append_log(f"废弃 | {title}", details=reason or "无说明")
+
+    if _is_locked():
+        _do_delete()
+    else:
+        with lock():
+            _do_delete()
 
 
 # === 日志 ===

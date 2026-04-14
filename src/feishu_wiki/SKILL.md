@@ -1,6 +1,6 @@
 ---
 name: feishu-wiki
-version: 0.2.0
+version: 0.2.1
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。当用户提到 AI Wiki、知识库、收录文章/论文、查询智能体相关知识时使用。"
 metadata:
   requires:
@@ -36,6 +36,7 @@ fw.search_feishu("关键词", wiki_only=True) # 只搜知识库页面
 fw.create("主题", "页面标题", "内容", summary="一句话摘要")
 fw.update("页面标题", "追加内容")
 fw.update("页面标题", "全部新内容", mode="overwrite")
+fw.delete("页面标题", reason="已合并到 [[其他页面]]")  # 软删除（标记已废弃）
 
 # 批量写（手动锁，一次拿锁改多个页面）
 with fw.lock():
@@ -68,6 +69,7 @@ feishu-wiki search "关键词" --wiki-only
 feishu-wiki create --category 主题 --title "页面标题" --summary "摘要" <<< "内容"
 feishu-wiki write "页面标题" <<< "追加内容"
 feishu-wiki write "页面标题" --mode overwrite <<< "全部新内容"
+feishu-wiki delete "页面标题" --reason "已合并到其他页面"
 
 # 反馈
 feishu-wiki feedback "希望支持批量导入"

@@ -458,6 +458,23 @@ def main():
                 print("\n  ❌ 升级失败，请手动运行：")
                 print("     python3 -m pip install --upgrade feishu-wiki")
 
+    elif args[0] == "delete":
+        if len(args) < 2:
+            print("用法: feishu-wiki delete <title> [--reason REASON]")
+            sys.exit(1)
+        reason = ""
+        title_parts = []
+        i = 1
+        while i < len(args):
+            if args[i] == "--reason" and i + 1 < len(args):
+                reason = args[i + 1]; i += 2
+            else:
+                title_parts.append(args[i]); i += 1
+        title = " ".join(title_parts)
+        from feishu_wiki.core import delete
+        delete(title, reason=reason)
+        print(json.dumps({"ok": True, "title": title, "action": "deprecated"}, ensure_ascii=False))
+
     elif args[0] == "help":
         print("用法: feishu-wiki <command>")
         print()
@@ -472,6 +489,7 @@ def main():
         print("写操作:")
         print("  create --category CAT --title TITLE [--summary S] <<< content")
         print("  write <title> [--mode append|overwrite] <<< content")
+        print("  delete <title> [--reason R]  软删除（标记已废弃）")
         print()
         print("管理:")
         print("  status     缓存状态")
