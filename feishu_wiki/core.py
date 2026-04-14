@@ -930,13 +930,69 @@ def status() -> dict:
         return {"cache": "missing"}
     index = _load_index()
     state = _load_state()
-    return {
+    result = {
         "cache": "ready",
         "built_at": index.get("built_at"),
         "pages": len(index.get("pages", {})),
         "dirty_log": state.get("dirty_log", False),
         "last_sync_at": state.get("last_sync_at"),
     }
+    try:
+        from feishu_wiki._version_check import check_update
+        info = check_update()
+        if info:
+            result["update_available"] = info["latest"]
+            result["current_version"] = info["local"]
+    except Exception:
+        pass
+    return result
+
+
+# === 用户反馈 ===
+
+_FEEDBACK_BASE_TOKEN = "Xpl0bjOSPaycQ6s3FJ1cqYIFnqc"
+_FEEDBACK_TABLE_ID = "tblGOdsAlb1CzbqB"
+
+
+def feedback(content: str) -> dict:
+    """提交用户反馈到飞书多维表格。
+
+    自动附带提交人、版本号和时间戳。
+    返回 {"ok": True, "record_id": "..."} 或 {"ok": False, "error": "..."}。
+    """
+    from feishu_wiki import __version__
+
+    user = _current_user()
+    now_ms = int(_time.time()) * 1000  # 飞书 datetime 字段用毫秒时间戳
+
+    fields = {
+        "反馈内容": content,
+        "提交人": user["name"],
+        "版本号": __version__,
+        "时间戳": now_ms,
+        "状态": "待处理",
+    }
+
+    result = subprocess.run(
+        [
+            "lark-cli", "base", "+record-upsert",
+            "--base-token", _FEEDBACK_BASE_TOKEN,
+            "--table-id", _FEEDBACK_TABLE_ID,
+            "--json", json.dumps(fields, ensure_ascii=False),
+        ],
+        capture_output=True, text=True,
+    )
+
+    try:
+        data = json.loads(result.stdout)
+        if data.get("ok"):
+            record_ids = data.get("data", {}).get("record", {}).get("record_id_list", [])
+            return {"ok": True, "record_id": record_ids[0] if record_ids else ""}
+        else:
+            err = data.get("error", {}).get("message", "未知错误")
+            return {"ok": False, "error": err}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # === 维基链接解析 ===

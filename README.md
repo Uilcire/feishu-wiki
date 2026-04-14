@@ -14,7 +14,7 @@
 ## 安装
 
 ```bash
-pip install feishu-wiki && feishu-wiki-register
+pip install feishu-wiki && python3 -m feishu_wiki register
 ```
 
 就这一行。它会：

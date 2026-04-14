@@ -250,6 +250,36 @@ def main():
         else:
             print(f"  未知模式: {args[1]}，可选: read / write")
 
+    elif args[0] == "feedback":
+        if len(args) < 2:
+            print("用法: feishu-wiki feedback \"你的反馈内容\"")
+            sys.exit(1)
+        content = " ".join(args[1:])
+        from feishu_wiki.core import feedback
+        result = feedback(content)
+        if result.get("ok"):
+            print(f"  ✅ 反馈已提交！")
+        else:
+            print(f"  ❌ 提交失败: {result.get('error')}")
+
+    elif args[0] == "update":
+        from feishu_wiki._version_check import check_update, _get_local_version
+        print("  正在检查更新...")
+        info = check_update()
+        if not info:
+            print(f"  ✅ 已是最新版本（{_get_local_version()}）")
+        else:
+            print(f"  发现新版本 {info['latest']}（当前 {info['local']}），正在升级...")
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--upgrade", "feishu-wiki"],
+                capture_output=False,
+            )
+            if result.returncode == 0:
+                print(f"\n  ✅ 已升级到 {info['latest']}")
+            else:
+                print("\n  ❌ 升级失败，请手动运行：")
+                print("     python3 -m pip install --upgrade feishu-wiki")
+
     elif args[0] == "help":
         print("用法: feishu-wiki <command>")
         print()
@@ -257,6 +287,8 @@ def main():
         print("  setup    一键安装和配置（首次使用）")
         print("  status   查看 wiki 状态")
         print("  mode     查看/切换模式（read=学习 / write=贡献）")
+        print("  update   检查并升级到最新版本")
+        print("  feedback 提交反馈或功能建议")
         print("  help     显示帮助")
 
     else:
