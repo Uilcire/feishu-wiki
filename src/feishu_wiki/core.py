@@ -243,6 +243,15 @@ def _build_index() -> dict:
         root_node_token = discovered["root_node_token"]
         root_obj_token = discovered.get("root_obj_token")
 
+    # 补全 root obj_token（通过 get_node API）
+    if not root_obj_token and root_node_token:
+        r = _run_lark(
+            ["wiki", "spaces", "get_node", "--as", "user",
+             "--params", json.dumps({"token": root_node_token})]
+        )
+        if _is_success(r):
+            root_obj_token = r.get("data", {}).get("node", {}).get("obj_token")
+
     # 2. 扫描根节点
     top_children = _list_children(root_node_token, space_id)
 
@@ -698,6 +707,128 @@ def _check_write_permission():
         )
 
 
+def _sync_container_page(category: str) -> None:
+    """同步容器页面正文：根据索引生成子页面列表 + 计数。
+
+    只处理顶层容器（来源/主题/实体/综合/原始资料），
+    原始资料的子分类（论文/文章等）不单独同步。
+    """
+    if "/" in category:
+        # 子分类（原始资料/论文 等）不同步容器页
+        return
+
+    index = _load_index()
+    container = index.get("containers", {}).get(category)
+    if not container or not container.get("obj_token"):
+        return
+
+    # 收集该分类下所有活跃页面
+    children = [
+        (title, info)
+        for title, info in sorted(index.get("pages", {}).items())
+        if info.get("category") == category and not info.get("deprecated")
+    ]
+
+    # 生成树形列表（用 mention-doc 链接）
+    lines = [f"```plaintext\n{category}"]
+    for i, (title, _info) in enumerate(children):
+        connector = "└──" if i == len(children) - 1 else "├──"
+        lines.append(f"{connector} {title}")
+    lines.append("```")
+    lines.append("")
+    lines.append(f"## 本分类页面（共 {len(children)} 个）")
+
+    # 带 mention-doc 的详细列表
+    for title, info in children:
+        obj_token = info.get("obj_token", "")
+        if obj_token:
+            lines.append(
+                f'- <mention-doc token="{obj_token}" type="docx">{title}</mention-doc>'
+            )
+        else:
+            lines.append(f"- {title}")
+
+    content = "\n".join(lines) + "\n"
+    _upload_page(category, container["obj_token"], content)
+
+    # 更新 obj_edit_time（容器页刚被修改了）
+    new_times = _refetch_edit_times([container["obj_token"]])
+    if container["obj_token"] in new_times:
+        container["obj_edit_time"] = new_times[container["obj_token"]]
+        _save_index(index)
+
+    print(f"[fw] 容器页已同步: {category}（{len(children)} 个页面）", file=sys.stderr)
+
+    # 同步根页面（全局导航）
+    _sync_root_page()
+
+
+def _sync_root_page() -> None:
+    """同步 AI Wiki 根页面：根据索引重新生成全局导航。"""
+    index = _load_index()
+    root_obj_token = index.get("root", {}).get("obj_token")
+    if not root_obj_token:
+        return
+
+    # 按分类收集活跃页面
+    by_cat: dict[str, list[tuple[str, dict]]] = {}
+    for title, info in sorted(index.get("pages", {}).items()):
+        if info.get("deprecated"):
+            continue
+        cat = info.get("category", "")
+        if cat and "/" not in cat:  # 只含顶层分类
+            by_cat.setdefault(cat, []).append((title, info))
+
+    top_cats = ["来源", "主题", "实体", "综合"]
+
+    # 树形目录
+    lines = [
+        "本知识库采用**卡帕西 LLM 维基模式**：LLM 在收录来源时将知识编译进持久的、"
+        "互相链接的维基中。新来源加入时，维基自动增长并维护交叉引用。",
+        "",
+        "## 整体架构",
+        "```plaintext",
+        "AI Wiki",
+        "├── 索引",
+    ]
+    for ci, cat in enumerate(top_cats):
+        pages = by_cat.get(cat, [])
+        is_last = ci == len(top_cats) - 1
+        branch = "└──" if is_last else "├──"
+        lines.append(f"{branch} {cat}/ ({len(pages)})")
+        for pi, (title, _) in enumerate(pages):
+            prefix = "    " if is_last else "│   "
+            connector = "└──" if pi == len(pages) - 1 else "├──"
+            lines.append(f"{prefix}{connector} {title}")
+    lines.append("```")
+    lines.append("")
+
+    # 导航链接
+    lines.append("## 导航")
+    lines.append("")
+    idx_info = index.get("pages", {}).get("索引", {})
+    idx_token = idx_info.get("obj_token", "")
+    if idx_token:
+        lines.append(f'- <mention-doc token="{idx_token}" type="docx">索引</mention-doc>')
+    for cat in top_cats:
+        pages = by_cat.get(cat, [])
+        container = index.get("containers", {}).get(cat, {})
+        cat_token = container.get("obj_token", "")
+        lines.append(
+            f'- <mention-doc token="{cat_token}" type="docx">{cat}</mention-doc>'
+            f" ({len(pages)})"
+        )
+        for title, info in pages:
+            ot = info.get("obj_token", "")
+            lines.append(
+                f'  - <mention-doc token="{ot}" type="docx">{title}</mention-doc>'
+            )
+
+    content = "\n".join(lines) + "\n"
+    _upload_page("AI Wiki", root_obj_token, content)
+    print("[fw] 根页面已同步", file=sys.stderr)
+
+
 def _upload_page(title: str, obj_token: str, content: str) -> None:
     """立即上传单个页面到飞书。"""
     r = _run_lark(
@@ -774,6 +905,7 @@ def create(category: str, title: str, content: str, summary: str = "") -> dict:
         _save_state(state)
 
         append_log("创建", title, mode=category)
+        _sync_container_page(category)
         return {"title": title, **new_page}
 
     if _is_locked():
@@ -895,6 +1027,9 @@ def delete(page_or_title, reason: str = "") -> None:
             _save_index(index)
 
         append_log("废弃", title, reason=reason or "无说明")
+        cat = page.get("category", "")
+        if cat:
+            _sync_container_page(cat)
 
     if _is_locked():
         _do_delete()
@@ -1214,6 +1349,45 @@ def lint() -> dict:
             })
     except Exception:
         pass
+
+    # 6. 容器页一致性：容器页中列出的页面 vs 索引中实际页面数
+    index = _load_index()
+    for cat in TOP_CONTAINERS:
+        container = index.get("containers", {}).get(cat)
+        if not container or not container.get("obj_token"):
+            continue
+        expected = {
+            p["title"] for p in pages
+            if p.get("category") == cat
+        }
+        if not expected:
+            continue
+        try:
+            cat_content = _fetch_doc_markdown(container["obj_token"])
+            # 从 mention-doc 中提取已列出的页面
+            listed_tokens = set(
+                t for t, _ in re.findall(
+                    r'<mention-doc[^>]*token="([^"]+)"[^>]*>([^<]+)</mention-doc>',
+                    cat_content,
+                )
+            )
+            listed_titles = {token_map.get(t, "") for t in listed_tokens} - {""}
+            missing = expected - listed_titles
+            extra = listed_titles - expected
+            for title in sorted(missing):
+                issues.append({
+                    "type": "容器失同步",
+                    "page": title,
+                    "detail": f"[{cat}] 页面存在但未在容器页中列出",
+                })
+            for title in sorted(extra):
+                issues.append({
+                    "type": "容器失同步",
+                    "page": title,
+                    "detail": f"[{cat}] 容器页中列出但实际不存在或已废弃",
+                })
+        except Exception:
+            pass
 
     # 统计
     from collections import Counter
