@@ -764,7 +764,7 @@ def create(category: str, title: str, content: str, summary: str = "") -> dict:
         state.setdefault("cached_edit_times", {})[title] = ""
         _save_state(state)
 
-        append_log(f"创建 | {title}", details=f"分类：{category}")
+        append_log("创建", title, mode=category)
         return {"title": title, **new_page}
 
     if _is_locked():
@@ -825,7 +825,7 @@ def update(page_or_title, content: str, mode: str = "append", summary: str = "")
                 index["pages"][title]["summary"] = summary
                 _save_index(index)
 
-        append_log(f"更新 | {title}", details=f"mode={mode}")
+        append_log("更新", title, mode=mode)
 
     if _is_locked():
         _do_update()
@@ -885,7 +885,7 @@ def delete(page_or_title, reason: str = "") -> None:
             index["pages"][title]["deprecated"] = True
             _save_index(index)
 
-        append_log(f"废弃 | {title}", details=reason or "无说明")
+        append_log("废弃", title, reason=reason or "无说明")
 
     if _is_locked():
         _do_delete()
@@ -897,23 +897,173 @@ def delete(page_or_title, reason: str = "") -> None:
 # === 日志 ===
 
 
-def append_log(summary: str, details: Optional[str] = None) -> None:
-    """追加一条日志。只改本地缓存，sync 时上传。"""
+def append_log(action: str, title: str, mode: str = "", reason: str = "") -> None:
+    """追加一条日志。格式：`- 页面标题 (mode/reason)`
+
+    日志按日期分组，同一天的操作追加到同一个 section 下。
+    """
     _ensure_cache()
     today = datetime.now().strftime("%Y-%m-%d")
     user = _current_user()
-    by_line = f" · by {user['name']}" if user.get("name") else ""
-    entry = f"\n## [{today}] {summary}{by_line}\n"
-    if details:
-        entry += f"{details}\n"
+    user_name = user.get("name", "")
+
+    # 构建日志行：- 页面标题 (补充信息)
+    extra = mode or reason
+    line = f"- {title} ({extra})\n" if extra else f"- {title}\n"
+
+    # 本次 section 标题
+    section_header = f"## [{today}] {action} · {user_name}\n"
 
     if LOG_FILE.exists():
         existing = LOG_FILE.read_text(encoding="utf-8")
-        LOG_FILE.write_text(existing + entry, encoding="utf-8")
+        # 如果当天同类操作的 section 已存在，追加到该 section 下
+        if section_header in existing:
+            existing = existing.rstrip() + "\n" + line
+        else:
+            existing = existing.rstrip() + "\n\n" + section_header + line
+        LOG_FILE.write_text(existing, encoding="utf-8")
     else:
-        LOG_FILE.write_text(f"# 日志\n{entry}", encoding="utf-8")
+        LOG_FILE.write_text(f"# 日志\n\n{section_header}{line}", encoding="utf-8")
 
     _mark_dirty_log()
+
+
+def compact_log(days: int = 7) -> str:
+    """压缩日志：保留最近 N 天的明细，更早的按周汇总。
+
+    汇总格式：谁做了什么（创建/更新/废弃了几个页面），关注哪些领域。
+    返回压缩后的日志内容，同时写入本地缓存并标记 dirty。
+    """
+    _ensure_cache()
+    if not LOG_FILE.exists():
+        return ""
+
+    content = LOG_FILE.read_text(encoding="utf-8")
+    lines = content.split("\n")
+
+    # 解析 sections: ## [YYYY-MM-DD] action · user
+    sections = []  # [(date_str, header_line, body_lines)]
+    current_header = None
+    current_date = None
+    current_body = []
+
+    for line in lines:
+        if line.startswith("## ["):
+            if current_header:
+                sections.append((current_date, current_header, current_body))
+            # 提取日期
+            date_str = line[4:14] if len(line) >= 14 else ""
+            current_date = date_str
+            current_header = line
+            current_body = []
+        elif current_header:
+            current_body.append(line)
+
+    if current_header:
+        sections.append((current_date, current_header, current_body))
+
+    # 分割：最近 N 天 vs 更早
+    cutoff = (datetime.now() - __import__("datetime").timedelta(days=days)).strftime("%Y-%m-%d")
+    recent = []
+    old = []
+    for date_str, header, body in sections:
+        if date_str >= cutoff:
+            recent.append((date_str, header, body))
+        else:
+            old.append((date_str, header, body))
+
+    if not old:
+        return content  # 没有需要压缩的
+
+    # 按周汇总旧日志
+    from collections import defaultdict
+    weekly = defaultdict(lambda: defaultdict(lambda: {"创建": [], "更新": [], "废弃": []}))
+
+    for date_str, header, body in old:
+        # 提取 action 和 user
+        # 新格式: ## [2026-04-10] 创建 · 刘宸希
+        # 旧格式: ## [2026-04-07] 收录 | LLM Wiki（Karpathy）
+        #         ## [2026-04-10] 更新 | Claude Code · by 刘宸希
+        parts = header.split("]", 1)
+        if len(parts) < 2:
+            continue
+        rest = parts[1].strip()
+
+        # 解析 user
+        if "· by " in rest:
+            action_part, user = rest.rsplit("· by ", 1)
+            user = user.strip()
+        elif " · " in rest:
+            action_part, user = rest.rsplit(" · ", 1)
+            user = user.strip()
+        else:
+            action_part = rest
+            user = "未知"
+
+        action = action_part.strip().lstrip("# ").split("|")[0].strip()
+
+        # 计算周起始
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            week_start = (dt - __import__("datetime").timedelta(days=dt.weekday())).strftime("%Y-%m-%d")
+        except ValueError:
+            week_start = date_str[:7]
+
+        # 归类 action
+        if "创建" in action or "收录" in action:
+            action_key = "创建"
+        elif "废弃" in action:
+            action_key = "废弃"
+        else:
+            action_key = "更新"
+
+        # 提取页面名
+        # 新格式: - 页面标题 (mode)
+        # 旧格式: ## [日期] 动作 | 页面标题 · by 用户  (页面名在 header 的 | 后面)
+        found_pages = False
+        for bline in body:
+            bline = bline.strip()
+            if bline.startswith("- "):
+                page_name = bline[2:].split("(")[0].strip()
+                if page_name:
+                    weekly[week_start][user][action_key].append(page_name)
+                    found_pages = True
+
+        # 旧格式：页面名在 | 后面
+        if not found_pages and "|" in action_part:
+            page_name = action_part.split("|", 1)[1].strip()
+            if page_name:
+                weekly[week_start][user][action_key].append(page_name)
+
+    # 生成汇总
+    summary_parts = ["# 日志\n"]
+    for week_start in sorted(weekly.keys()):
+        week_end_dt = datetime.strptime(week_start, "%Y-%m-%d") + __import__("datetime").timedelta(days=6)
+        week_end = week_end_dt.strftime("%Y-%m-%d")
+        summary_parts.append(f"## [{week_start} ~ {week_end}] 周汇总\n")
+        for user, actions in weekly[week_start].items():
+            parts_list = []
+            for act in ("创建", "更新", "废弃"):
+                pages = actions[act]
+                if pages:
+                    unique = list(dict.fromkeys(pages))  # 去重保序
+                    parts_list.append(f"{act} {len(unique)} 页")
+            if parts_list:
+                summary_parts.append(f"- {user}：{'，'.join(parts_list)}\n")
+        summary_parts.append("")
+
+    # 拼接：汇总 + 最近明细
+    result = "\n".join(summary_parts)
+    for date_str, header, body in recent:
+        result += "\n" + header + "\n" + "\n".join(body)
+
+    result = result.rstrip() + "\n"
+    LOG_FILE.write_text(result, encoding="utf-8")
+    _mark_dirty_log()
+
+    old_lines = sum(len(b) for _, _, b in old)
+    print(f"[fw] 日志压缩：{len(old)} 个旧 section → {len(weekly)} 个周汇总", file=sys.stderr)
+    return result
 
 
 # === 同步 ===

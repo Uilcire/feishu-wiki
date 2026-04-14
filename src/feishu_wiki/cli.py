@@ -401,6 +401,14 @@ def main():
         refresh()
         print(json.dumps({"ok": True}))
 
+    elif args[0] == "compact-log":
+        days = 7
+        if len(args) >= 3 and args[1] == "--days":
+            days = int(args[2])
+        from feishu_wiki.core import compact_log
+        compact_log(days=days)
+        print(json.dumps({"ok": True, "days_kept": days}))
+
     elif args[0] == "user":
         from feishu_wiki.core import current_user
         print(json.dumps(current_user(), ensure_ascii=False, indent=2))

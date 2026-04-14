@@ -1,6 +1,6 @@
 ---
 name: feishu-wiki
-version: 0.2.1
+version: 0.2.2
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。当用户提到 AI Wiki、知识库、收录文章/论文、查询智能体相关知识时使用。"
 metadata:
   requires:
