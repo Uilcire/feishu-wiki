@@ -6,25 +6,13 @@
 
 ## 安装
 
-包发布在 GitHub Packages，需要先配置 npm registry：
-
 ```bash
-# 配置 @uilcire scope 指向 GitHub Packages（一次性）
-echo "@uilcire:registry=https://npm.pkg.github.com" >> ~/.npmrc
-
-# 安装
+echo "@uilcire:registry=https://npm.pkg.github.com" >> ~/.npmrc   # 一次性配置
 npm install -g @uilcire/ai-wiki
+ai-wiki setup                                                      # 自动安装 lark-cli + 登录飞书
 ```
 
-> **注意：** 公共 npm 上的 `ai-wiki` 是另一个无关的包，请确保安装的是 `@uilcire/ai-wiki`。
-
-### 前置条件
-
-- Node.js 16+
-- [lark-cli](https://www.npmjs.com/package/@larksuite/cli)：`npm install -g @larksuite/cli`
-- 飞书账号：`lark-cli auth login`
-
-或运行 `ai-wiki setup` 自动检测并安装依赖。
+> 公共 npm 上的 `ai-wiki` 是另一个无关的包，请认准 `@uilcire/ai-wiki`。
 
 ## 使用
 
