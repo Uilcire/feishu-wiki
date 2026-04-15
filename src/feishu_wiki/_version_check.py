@@ -34,8 +34,11 @@ def _fetch_latest_version(timeout: float = 2.0) -> str | None:
         return None
 
 
-def check_update() -> dict | None:
+def check_update(force: bool = False) -> dict | None:
     """检查是否有新版本。
+
+    Args:
+        force: 跳过缓存，直接查 PyPI。
 
     Returns:
         {"local": "0.1.3", "latest": "0.1.4"} 如果有更新，
@@ -44,8 +47,8 @@ def check_update() -> dict | None:
     try:
         local = _get_local_version()
 
-        # 读缓存
-        if _CACHE_FILE.exists():
+        # 读缓存（force 时跳过）
+        if not force and _CACHE_FILE.exists():
             cache = json.loads(_CACHE_FILE.read_text())
             if time.time() - cache.get("checked_at", 0) < _CHECK_INTERVAL:
                 latest = cache.get("version")

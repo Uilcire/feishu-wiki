@@ -62,7 +62,7 @@ def _check_lark_cli():
     if not shutil.which("lark-cli"):
         print(
             "\n  ❌ 未检测到 lark-cli。请先安装：\n"
-            "     npm install -g @anthropic-ai/lark-cli\n"
+            "     npm install -g @larksuite/cli\n"
             "\n  安装后登录飞书：\n"
             "     lark-cli auth login\n",
             file=sys.stderr,

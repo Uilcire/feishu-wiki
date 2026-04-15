@@ -49,12 +49,12 @@ def _install_lark_cli():
         return False
 
     result = subprocess.run(
-        ["npm", "install", "-g", "@anthropic-ai/lark-cli"],
+        ["npm", "install", "-g", "@larksuite/cli"],
         capture_output=False,
     )
     if result.returncode != 0:
         print("  ❌ lark-cli 安装失败，请手动安装：")
-        print("     npm install -g @anthropic-ai/lark-cli")
+        print("     npm install -g @larksuite/cli")
         return False
 
     print("  ✅ lark-cli 已安装")
@@ -456,7 +456,7 @@ def main():
     elif args[0] == "update":
         from feishu_wiki._version_check import check_update, _get_local_version
         print("  正在检查更新...")
-        info = check_update()
+        info = check_update(force=True)
         if not info:
             print(f"  ✅ 已是最新版本（{_get_local_version()}）")
         else:

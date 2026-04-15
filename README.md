@@ -22,7 +22,7 @@ pip install feishu-wiki
 ### 前置条件
 
 - Python 3.9+
-- [lark-cli](https://github.com/nicefan/lark-cli)：`npm install -g @anthropic-ai/lark-cli`
+- [lark-cli](https://www.npmjs.com/package/@larksuite/cli)：`npm install -g @larksuite/cli`
 - 飞书账号：`lark-cli auth login`
 
 ## 使用
