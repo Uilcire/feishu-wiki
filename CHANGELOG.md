@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 (2026-04-15)
+
+### Bug 修复
+
+- 版本检查包名修正：`npm view ai-wiki` → `npm view @uilcire/ai-wiki`，不再误报别人的包为新版本
+
 ## 0.5.1 (2026-04-15)
 
 ### Bug 修复
