@@ -1,0 +1,43 @@
+{
+  "name": "ai-wiki",
+  "version": "0.5.0",
+  "description": "AI Wiki — AI Agent 协作知识库，基于飞书知识库",
+  "bin": {
+    "ai-wiki": "./bin/cli.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js",
+    "test": "node --test ../tests/*.test.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "scripts/",
+    "skills/"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "ai",
+    "wiki",
+    "feishu",
+    "lark",
+    "knowledge-base",
+    "agent"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Uilcire/feishu-wiki"
+  },
+  "peerDependencies": {
+    "@larksuite/cli": ">=1.0.11"
+  },
+  "peerDependenciesMeta": {
+    "@larksuite/cli": {
+      "optional": true
+    }
+  },
+  "dependencies": {}
+}

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.5.0 (2026-04-15)
+
+### 重构：Python → Node.js
+
+- 整体从 Python 包迁移到 Node.js（CommonJS，Node 16+）
+- CLI 入口：`ai-wiki`（npm 全局安装）
+- 包名：`ai-wiki`（原 `feishu-wiki`）
+
+### 新功能
+
+- 后台索引构建：首次运行不再阻塞，索引在后台子进程构建
+- 云端 token 清单：根页面嵌入 `<!-- wiki-tokens:... -->`，`search` 在索引未就绪时直接从云端获取 token 集合过滤结果
+- `ai-wiki status` 新增 `building` 和 `corrupted` 状态
+- `ai-wiki setup` 一键安装（检测 lark-cli + 登录 + 验证连接）
+
+### Bug 修复
+
+- `loadIndex()` / `loadState()` 加 try/catch，损坏的缓存文件不再崩溃
+- `log-qa` 非法 JSON 输入不再抛出原始 SyntaxError
+- `mode <非法值>` 退出码从 0 改为 1
+- `find` 无结果时输出错误到 stderr（不再输出 `null` 到 stdout）
+
+### 测试
+
+- 新增 193 个单元测试（`node:test` + `node:assert`，零依赖）
+- 覆盖：core、commands、lark、lock、search、postinstall、integration、docs/structure
+
+## 0.4.0 (2026-04-15)
+
+- Node.js 重写：从 Python 迁移到 Node.js CommonJS
+- npm postinstall 自动注册 skill 到 ~/.agents、~/.claude、~/.codex
+- 旧 `feishu-wiki` skill 目录自动清理
+
 ## 0.3.0 (2026-04-15)
 
 - lark-cli 包名修正为 `@larksuite/cli`
