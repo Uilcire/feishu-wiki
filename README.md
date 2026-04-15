@@ -7,12 +7,9 @@
 ## 安装
 
 ```bash
-echo "@uilcire:registry=https://npm.pkg.github.com" >> ~/.npmrc   # 一次性配置
 npm install -g @uilcire/ai-wiki
-ai-wiki setup                                                      # 自动安装 lark-cli + 登录飞书
+ai-wiki setup                      # 自动安装 lark-cli + 登录飞书
 ```
-
-> 公共 npm 上的 `ai-wiki` 是另一个无关的包，请认准 `@uilcire/ai-wiki`。
 
 ## 使用
 
