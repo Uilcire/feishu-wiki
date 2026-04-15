@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 (2026-04-15)
+
+### Bug 修复
+
+- 索引 TTL 过期重建失败时回退到旧缓存，不再直接崩溃
+- 修正默认配置文件查找路径（`skills/default-config.json` → `default-config.json`），修复无 `.feishu-config.json` 时索引重建必然失败的问题
+- `default-config.json` 补全 `root_obj_token`，避免额外 API 调用
+
 ## 0.5.0 (2026-04-15)
 
 ### 重构：Python → Node.js

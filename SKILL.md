@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.5.0
+version: 0.5.1
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -170,6 +170,16 @@ Agent 是用户和原文之间唯一的 UI。收录的"讨论"不是在请许可
 - **索引页**：所有来源、主题、实体页面必须在索引页中列出
 
 页面结构模板见 `templates/` 目录。
+
+### 浏览（Browse）
+
+当用户问"wiki 里有什么"、"有哪些内容"、"列一下知识库"等概览性问题时，**只用索引回答，不要逐页 fetch**：
+
+1. `ai-wiki list` 获取完整索引（含 title、category、summary、edit_time）
+2. 按分类汇总，列出各类别下的页面标题和摘要
+3. 用户追问具体页面时再 `ai-wiki fetch` 拉取正文
+
+索引本身已包含足够信息回答"有什么"类问题，无需拉取页面内容。
 
 ### 查询（Query）
 
