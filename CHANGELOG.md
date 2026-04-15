@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (2026-04-15)
+
+- lark-cli 包名修正为 `@larksuite/cli`
+- `feishu-wiki update` 强制跳过版本缓存，立即检查 PyPI 最新版
+
 ## 0.2.9 (2026-04-14)
 
 - 包内打包 `default-config.json`，新用户无需手动创建 `.feishu-config.json`
