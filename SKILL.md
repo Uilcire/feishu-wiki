@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.5.2
+version: 0.5.3
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -30,7 +30,7 @@ metadata:
 ## 安装
 
 ```bash
-npm install -g ai-wiki
+npm install -g @uilcire/ai-wiki
 ```
 
 依赖：Node.js 16+、`lark-cli`（`npm install -g @larksuite/cli`）。

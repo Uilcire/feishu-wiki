@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.3 (2026-04-15)
+
+### 改进
+
+- 首次索引构建改为同步执行，`list`/`find` 等命令不再返回空结果
+- 索引构建过程实时报告进度：每扫描完一个容器即输出页面数和累计总数
+- 移除后台构建时的空壳降级逻辑（不再返回 `{ pages: {} }` 假装成功）
+
+### Bug 修复
+
+- `upgrade` 命令包名修正：`ai-wiki` → `@uilcire/ai-wiki`（版本检查、安装、手动提示三处）
+- `agents/claude.yaml`、`agents/openai.yaml` 更新：移除旧 `feishu-wiki` 引用和 Python 残留，统一为 `ai-wiki` CLI
+
 ## 0.5.2 (2026-04-15)
 
 ### Bug 修复

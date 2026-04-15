@@ -18,7 +18,7 @@
 
 ### 1.2 npm install (postinstall)
 
-The postinstall script runs automatically after `npm install -g ai-wiki`:
+The postinstall script runs automatically after `npm install -g @uilcire/ai-wiki`:
 
 ```
   ═══════════════════════════════════════════════════
@@ -223,7 +223,7 @@ node --test tests/*.test.js
 ## 6. Architecture Summary
 
 ```
-npm install -g ai-wiki
+npm install -g @uilcire/ai-wiki
         │
         ▼
 postinstall.js ──→ ~/.agents/skills/ai-wiki/  (canonical)
