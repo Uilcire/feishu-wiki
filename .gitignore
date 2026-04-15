@@ -1,20 +1,23 @@
 .DS_Store
 
-# 本地缓存（飞书为信源，缓存由 feishu_wiki.py 自动管理）
+# Runtime cache (managed by ai-wiki CLI)
 .cache/
 
-# Python
-__pycache__/
-*.pyc
-*.egg-info/
-dist/
-build/
+# Local config (contains space_id, not for sharing)
+.feishu-config.json
+
+# npm
+node_modules/
+*.tgz
+.npmrc
 
 # IDE / editor
 .obsidian/
 .vscode/
 .idea/
 
-# Claude Code
+# Claude Code conversation logs & memory
 .claude/
- /
+memory/
+*.jsonl
+\ /

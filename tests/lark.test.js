@@ -13,7 +13,7 @@ function setupMock(fn) {
 }
 
 function loadLark() {
-  const modPath = require.resolve("../src/lib/lark.js");
+  const modPath = require.resolve("../lib/lark.js");
   delete require.cache[modPath];
   return require(modPath);
 }

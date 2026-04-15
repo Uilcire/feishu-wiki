@@ -1,5 +1,5 @@
 /**
- * commands.test.js — tests for src/lib/commands.js
+ * commands.test.js — tests for lib/commands.js
  */
 
 const { describe, it, beforeEach, afterEach } = require("node:test");
@@ -9,10 +9,10 @@ const fs = require("fs");
 const os = require("os");
 
 const PROJ = path.resolve(__dirname, "..");
-const COMMANDS_PATH = require.resolve(path.join(PROJ, "src/lib/commands.js"));
-const CORE_PATH = require.resolve(path.join(PROJ, "src/lib/core.js"));
-const SEARCH_PATH = require.resolve(path.join(PROJ, "src/lib/search.js"));
-const LARK_PATH = require.resolve(path.join(PROJ, "src/lib/lark.js"));
+const COMMANDS_PATH = require.resolve(path.join(PROJ, "lib/commands.js"));
+const CORE_PATH = require.resolve(path.join(PROJ, "lib/core.js"));
+const SEARCH_PATH = require.resolve(path.join(PROJ, "lib/search.js"));
+const LARK_PATH = require.resolve(path.join(PROJ, "lib/lark.js"));
 
 let captured = { logs: [], errors: [], exitCode: null };
 let origLog, origError, origExit, origStderrWrite;

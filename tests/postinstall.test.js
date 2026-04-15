@@ -12,8 +12,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-const POSTINSTALL = path.resolve(__dirname, "..", "src", "scripts", "postinstall.js");
-const SKILLS_SRC = path.resolve(__dirname, "..", "src", "skills");
+const POSTINSTALL = path.resolve(__dirname, "..", "scripts", "postinstall.js");
 
 function runPostinstall(env = {}) {
   try {

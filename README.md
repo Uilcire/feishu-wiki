@@ -6,9 +6,17 @@
 
 ## 安装
 
+包发布在 GitHub Packages，需要先配置 npm registry：
+
 ```bash
-npm install -g ai-wiki
+# 配置 @uilcire scope 指向 GitHub Packages（一次性）
+echo "@uilcire:registry=https://npm.pkg.github.com" >> ~/.npmrc
+
+# 安装
+npm install -g @uilcire/ai-wiki
 ```
+
+> **注意：** 公共 npm 上的 `ai-wiki` 是另一个无关的包，请确保安装的是 `@uilcire/ai-wiki`。
 
 ### 前置条件
 
@@ -86,7 +94,7 @@ ai-wiki refresh         # 重建索引
 - 可以在飞书里浏览和评论，但修改请告诉你的 Agent
 - 每个主张必须有来源，不允许无出处的断言
 
-详细操作手册见 [SKILL.md](src/skills/SKILL.md)。
+详细操作手册见 [SKILL.md](SKILL.md)。
 
 ## License
 

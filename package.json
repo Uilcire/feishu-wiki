@@ -1,19 +1,26 @@
 {
-  "name": "ai-wiki",
+  "name": "@uilcire/ai-wiki",
   "version": "0.5.0",
   "description": "AI Wiki — AI Agent 协作知识库，基于飞书知识库",
   "bin": {
-    "ai-wiki": "./bin/cli.js"
+    "ai-wiki": "bin/cli.js"
   },
   "scripts": {
     "postinstall": "node scripts/postinstall.js",
-    "test": "node --test ../tests/*.test.js"
+    "test": "node --test tests/*.test.js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "files": [
+    "SKILL.md",
+    "default-config.json",
     "bin/",
     "lib/",
     "scripts/",
-    "skills/"
+    "agents/",
+    "references/",
+    "templates/"
   ],
   "engines": {
     "node": ">=16.0.0"
@@ -29,7 +36,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Uilcire/feishu-wiki"
+    "url": "git+https://github.com/Uilcire/feishu-wiki.git"
   },
   "peerDependencies": {
     "@larksuite/cli": ">=1.0.11"

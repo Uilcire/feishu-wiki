@@ -1,5 +1,5 @@
 /**
- * core.test.js — tests for src/lib/core.js
+ * core.test.js — tests for lib/core.js
  */
 
 const { describe, it, beforeEach, afterEach } = require("node:test");
@@ -9,9 +9,9 @@ const path = require("path");
 const os = require("os");
 
 const PROJ = path.resolve(__dirname, "..");
-const CORE_PATH = require.resolve(path.join(PROJ, "src/lib/core.js"));
-const LARK_PATH = require.resolve(path.join(PROJ, "src/lib/lark.js"));
-const LOCK_PATH = require.resolve(path.join(PROJ, "src/lib/lock.js"));
+const CORE_PATH = require.resolve(path.join(PROJ, "lib/core.js"));
+const LARK_PATH = require.resolve(path.join(PROJ, "lib/lark.js"));
+const LOCK_PATH = require.resolve(path.join(PROJ, "lib/lock.js"));
 
 let tmpDir;
 let origCwd;

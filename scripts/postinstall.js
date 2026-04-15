@@ -9,7 +9,7 @@ const { execFileSync } = require("child_process");
 
 const SKILL_NAME = "ai-wiki";
 const OLD_SKILL_NAME = "feishu-wiki";
-const SKILLS_SRC = path.join(__dirname, "..", "skills");
+const SKILLS_SRC = path.join(__dirname, "..");
 
 function which(cmd) {
   try {

@@ -8,7 +8,7 @@ const { execFileSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-const CLI = path.resolve(__dirname, "..", "src", "bin", "cli.js");
+const CLI = path.resolve(__dirname, "..", "bin", "cli.js");
 
 function run(args, opts = {}) {
   try {
@@ -151,11 +151,11 @@ describe("CLI mode", () => {
 
 describe("package.json integrity", () => {
   const pkg = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "..", "src", "package.json"), "utf-8")
+    fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf-8")
   );
 
   it("has correct name", () => {
-    assert.strictEqual(pkg.name, "ai-wiki");
+    assert.strictEqual(pkg.name, "@uilcire/ai-wiki");
   });
 
   it("has semver version", () => {
@@ -163,7 +163,7 @@ describe("package.json integrity", () => {
   });
 
   it("bin points to existing cli.js", () => {
-    const binPath = path.resolve(__dirname, "..", "src", pkg.bin["ai-wiki"]);
+    const binPath = path.resolve(__dirname, "..", pkg.bin["ai-wiki"]);
     assert.ok(fs.existsSync(binPath));
   });
 

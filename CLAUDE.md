@@ -16,10 +16,10 @@ node --test tests/*.test.js
 node --test tests/core.test.js
 
 # Run the CLI directly from source
-node src/bin/cli.js <command>
+node bin/cli.js <command>
 
 # Package for distribution
-cd src && npm pack
+npm pack
 ```
 
 There is no build step, no linter, and no transpilation. The project is plain CommonJS JavaScript targeting Node.js 16+.
@@ -27,7 +27,10 @@ There is no build step, no linter, and no transpilation. The project is plain Co
 ## Architecture
 
 ```
-src/
+.
+├── SKILL.md            # Agent skill manifest (YAML frontmatter + full operating manual)
+├── default-config.json # Default wiki configuration
+├── package.json
 ├── bin/cli.js          # Entry point: requires commands.js, calls main()
 ├── lib/
 │   ├── commands.js     # CLI router: parseArgs() + switch/case for all commands
@@ -37,13 +40,10 @@ src/
 │   └── search.js       # Local grep + Feishu API search
 ├── scripts/
 │   └── postinstall.js  # npm postinstall: copies skills to ~/.agents, ~/.claude, ~/.codex
-├── skills/
-│   ├── SKILL.md        # Agent skill manifest (YAML frontmatter + full operating manual)
-│   ├── default-config.json
-│   ├── agents/         # Platform-specific agent configs (claude.yaml, openai.yaml)
-│   ├── references/     # architecture.md
-│   └── templates/      # Page templates (source, raw-material, entity-topic)
-└── package.json
+├── agents/             # Platform-specific agent configs (claude.yaml, openai.yaml)
+├── references/         # architecture.md
+├── templates/          # Page templates (source, raw-material, entity-topic)
+└── tests/              # Dev-only, not included in npm package
 ```
 
 **Key data flow:** All Feishu API access goes through `lark.js` → `lark-cli` subprocess. No direct HTTP calls. `core.js` manages a lazy cache (`.cache/` relative to cwd) with 60s TTL index and on-demand page fetching.
@@ -58,7 +58,7 @@ src/
 
 ## Agent Skill
 
-The full Agent operating manual is in [src/skills/SKILL.md](src/skills/SKILL.md). Architecture details are in [src/skills/references/architecture.md](src/skills/references/architecture.md). Page templates are in `src/skills/templates/`.
+The full Agent operating manual is in [SKILL.md](SKILL.md). Architecture details are in [references/architecture.md](references/architecture.md). Page templates are in `templates/`.
 
 ## Conventions
 

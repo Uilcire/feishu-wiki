@@ -1,5 +1,5 @@
 /**
- * search.test.js — tests for src/lib/search.js
+ * search.test.js — tests for lib/search.js
  */
 
 const { describe, it, beforeEach, afterEach } = require("node:test");
@@ -13,9 +13,9 @@ const os = require("os");
 // ---------------------------------------------------------------------------
 
 const PROJ = path.resolve(__dirname, "..");
-const SEARCH_PATH = require.resolve(path.join(PROJ, "src/lib/search.js"));
-const CORE_PATH = require.resolve(path.join(PROJ, "src/lib/core.js"));
-const LARK_PATH = require.resolve(path.join(PROJ, "src/lib/lark.js"));
+const SEARCH_PATH = require.resolve(path.join(PROJ, "lib/search.js"));
+const CORE_PATH = require.resolve(path.join(PROJ, "lib/core.js"));
+const LARK_PATH = require.resolve(path.join(PROJ, "lib/lark.js"));
 
 let tmpDir;
 let mockCore;

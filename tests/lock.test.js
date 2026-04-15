@@ -1,5 +1,5 @@
 /**
- * lock.test.js — tests for src/lib/lock.js
+ * lock.test.js — tests for lib/lock.js
  */
 
 const { describe, it, afterEach } = require("node:test");
@@ -7,9 +7,9 @@ const assert = require("node:assert/strict");
 const path = require("path");
 
 const PROJ = path.resolve(__dirname, "..");
-const LOCK_PATH = require.resolve(path.join(PROJ, "src/lib/lock.js"));
-const CORE_PATH = require.resolve(path.join(PROJ, "src/lib/core.js"));
-const LARK_PATH = require.resolve(path.join(PROJ, "src/lib/lark.js"));
+const LOCK_PATH = require.resolve(path.join(PROJ, "lib/lock.js"));
+const CORE_PATH = require.resolve(path.join(PROJ, "lib/core.js"));
+const LARK_PATH = require.resolve(path.join(PROJ, "lib/lark.js"));
 
 // Track queue state for mock
 let mockQueueContent = "";

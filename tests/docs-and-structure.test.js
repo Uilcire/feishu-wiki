@@ -8,8 +8,8 @@ const fs = require("fs");
 const path = require("path");
 
 const PROJ = path.resolve(__dirname, "..");
-const SRC = path.join(PROJ, "src");
-const SKILLS = path.join(SRC, "skills");
+const SRC = PROJ;
+const SKILLS = PROJ;
 
 // ---------------------------------------------------------------------------
 // SKILL.md validation
@@ -208,7 +208,7 @@ describe("package.json", () => {
   it("files array includes needed directories", () => {
     assert.ok(pkg.files.includes("bin/"));
     assert.ok(pkg.files.includes("lib/"));
-    assert.ok(pkg.files.includes("skills/"));
+    assert.ok(pkg.files.includes("SKILL.md"));
   });
 
   it("engine requires node >= 16", () => {
@@ -282,7 +282,7 @@ describe("CLAUDE.md", () => {
 // ---------------------------------------------------------------------------
 
 describe("project structure", () => {
-  it("all JS files in src/lib/ are valid JavaScript", () => {
+  it("all JS files in lib/ are valid JavaScript", () => {
     const libDir = path.join(SRC, "lib");
     for (const file of fs.readdirSync(libDir)) {
       if (file.endsWith(".js")) {
@@ -310,13 +310,13 @@ describe("project structure", () => {
     // Pass if .cache doesn't exist at all
   });
 
-  it("no stale Python files in src/", () => {
+  it("no stale Python files in project", () => {
     // Project migrated from Python to Node — no .py files should exist
     const walk = (dir) => {
       const pyFiles = [];
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const full = path.join(dir, entry.name);
-        if (entry.isDirectory() && entry.name !== "node_modules") {
+        if (entry.isDirectory() && !["node_modules", ".git", ".cache", "tests"].includes(entry.name)) {
           pyFiles.push(...walk(full));
         } else if (entry.name.endsWith(".py")) {
           pyFiles.push(full);
@@ -324,7 +324,7 @@ describe("project structure", () => {
       }
       return pyFiles;
     };
-    const pyFiles = walk(SRC);
+    const pyFiles = walk(PROJ);
     assert.strictEqual(pyFiles.length, 0, `Found stale Python files: ${pyFiles.join(", ")}`);
   });
 });
