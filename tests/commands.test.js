@@ -169,14 +169,13 @@ describe("fetch command", () => {
   });
 
   it("exits 1 when page not found", () => {
-    const { main } = setupMocks({ core: { find: () => null } });
+    const { main } = setupMocks({ core: { fetch: () => { throw new Error("找不到页面: Missing"); } } });
     assert.throws(() => main(["fetch", "Missing"]), /EXIT_1/);
   });
 
   it("outputs content for found page", () => {
     const { main } = setupMocks({
       core: {
-        find: () => ({ title: "Page", obj_token: "ot" }),
         fetch: () => "# Page Content",
       },
     });

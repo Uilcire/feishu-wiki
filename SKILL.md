@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.5.9
+version: 0.6.0
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -214,6 +214,10 @@ Agent 是用户和原文之间唯一的 UI。收录的"讨论"不是在请许可
 - **索引缺页**：页面存在但未在索引页中列出
 
 发现问题后用 `ai-wiki update` 修复，再跑一次 `ai-wiki lint` 验证。
+
+## 操作前置规则
+
+- **需求模糊必须先澄清** —— 用户意图不明确时，先提问确认，不得直接执行写入操作。模糊情形包括：目标页面不确定、来源指向多个候选、操作范围（append vs overwrite）不清晰。
 
 ## 约定
 

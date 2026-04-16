@@ -1,6 +1,6 @@
 {
   "name": "@uilcire/ai-wiki",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "description": "AI Wiki — AI Agent 协作知识库，基于飞书知识库",
   "bin": {
     "ai-wiki": "bin/cli.js"

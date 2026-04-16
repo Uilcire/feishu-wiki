@@ -93,6 +93,8 @@ function writeIndex(core, dir, index) {
     JSON.stringify({ dirty_pages: [], dirty_log: false, cached_edit_times: {} }),
     "utf-8"
   );
+  // 清空内存缓存，使 loadIndex 读取磁盘上的新数据
+  core._invalidateCache();
 }
 
 function makeIndex(pages = {}, containers = {}) {
@@ -408,8 +410,9 @@ describe("status", () => {
   it("returns corrupted when index.json is invalid JSON", () => {
     const core = setupEnv();
     core.ensureCache();
-    // Corrupt the index file
+    // Corrupt the index file and invalidate memory cache
     fs.writeFileSync(path.join(tmpDir, ".cache", "index.json"), "{bad json", "utf-8");
+    core._invalidateCache();
     const st = core.status();
     assert.strictEqual(st.cache, "corrupted");
     assert.ok(st.version);

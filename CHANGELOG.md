@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.0 (2026-04-16)
+
+### 性能优化
+
+- **lint 性能大幅提升**：每个页面只 fetch 一次（原来最多 4 次），页面查找从 O(n²) 降到 O(n)
+- **模块级索引内存缓存**：`find`/`listPages`/`exists` 连续调用不再重复解析 JSON
+- **模块级配置缓存**：`.feishu-config.json` 只读一次，后续直接复用
+- **fetch() 状态优化**：state 文件从 2 次加载合并为 1 次
+- **锁轮询优化**：忙等待改为 `Atomics.wait`（CPU 0%），无过期条目时不写回队列
+- **lark.js 限流退避**：忙等待改为 `Atomics.wait`
+- **搜索 token 缓存**：wiki token 集合会话内只构建一次
+- **fetch 命令去重**：消除 `find` + `fetch` 双重索引查找
+- **state/index 精简序列化**：去掉 JSON pretty-print，减少 IO
+- 清理死代码 `markDirtyLog()`
+
 ## 0.5.9 (2026-04-16)
 
 ### 改进
