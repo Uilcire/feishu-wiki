@@ -539,3 +539,244 @@ describe("write permission check", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// create — duplicate title check
+// ---------------------------------------------------------------------------
+
+describe("create duplicate title check", () => {
+  afterEach(cleanupEnv);
+
+  it("rejects create when non-deprecated page with same title exists", () => {
+    const core = setupEnv();
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const configPath = path.join(home, ".feishu-wiki-config.json");
+    const existed = fs.existsSync(configPath);
+    let origContent;
+    if (existed) origContent = fs.readFileSync(configPath, "utf-8");
+
+    try {
+      fs.writeFileSync(configPath, JSON.stringify({ write_enabled: true }));
+      const pages = {
+        "ExistingPage": { category: "主题", obj_token: "ot1", node_token: "nt1", url: "" },
+      };
+      const containers = { "主题": { node_token: "nt_t", obj_token: "ot_t" } };
+      writeIndex(core, tmpDir, makeIndex(pages, containers));
+      assert.throws(
+        () => core.create("主题", "ExistingPage", "new content"),
+        (e) => e.message.includes("已存在于") && e.message.includes("ExistingPage")
+      );
+    } finally {
+      if (existed) fs.writeFileSync(configPath, origContent);
+      else if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    }
+  });
+
+  it("allows create with --force even when title exists", () => {
+    const core = setupEnv();
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const configPath = path.join(home, ".feishu-wiki-config.json");
+    const existed = fs.existsSync(configPath);
+    let origContent;
+    if (existed) origContent = fs.readFileSync(configPath, "utf-8");
+
+    try {
+      fs.writeFileSync(configPath, JSON.stringify({ write_enabled: true }));
+      const pages = {
+        "ExistingPage": { category: "主题", obj_token: "ot1", node_token: "nt1", url: "" },
+      };
+      const containers = { "主题": { node_token: "nt_t", obj_token: "ot_t" } };
+      writeIndex(core, tmpDir, makeIndex(pages, containers));
+
+      // Mock lark to return a created doc
+      const mockLark = require.cache[LARK_PATH].exports;
+      mockLark.run = () => ({
+        ok: true,
+        data: { doc_id: "new_ot", doc_url: "https://lark.com/wiki/new_nt" },
+      });
+      mockLark.isSuccess = (r) => Boolean(r) && r.ok;
+
+      const result = core.create("主题", "ExistingPage", "new content", { force: true });
+      assert.ok(result);
+      assert.strictEqual(result.title, "ExistingPage");
+    } finally {
+      if (existed) fs.writeFileSync(configPath, origContent);
+      else if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    }
+  });
+
+  it("allows create when existing page is deprecated", () => {
+    const core = setupEnv();
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const configPath = path.join(home, ".feishu-wiki-config.json");
+    const existed = fs.existsSync(configPath);
+    let origContent;
+    if (existed) origContent = fs.readFileSync(configPath, "utf-8");
+
+    try {
+      fs.writeFileSync(configPath, JSON.stringify({ write_enabled: true }));
+      const pages = {
+        "DeprecatedPage": { category: "主题", obj_token: "ot1", node_token: "nt1", url: "", deprecated: true },
+      };
+      const containers = { "主题": { node_token: "nt_t", obj_token: "ot_t" } };
+      writeIndex(core, tmpDir, makeIndex(pages, containers));
+
+      const mockLark = require.cache[LARK_PATH].exports;
+      mockLark.run = () => ({
+        ok: true,
+        data: { doc_id: "new_ot", doc_url: "https://lark.com/wiki/new_nt" },
+      });
+      mockLark.isSuccess = (r) => Boolean(r) && r.ok;
+
+      // Should not throw — deprecated page doesn't block create
+      const result = core.create("主题", "DeprecatedPage", "new content");
+      assert.ok(result);
+    } finally {
+      if (existed) fs.writeFileSync(configPath, origContent);
+      else if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// update / del — 原始资料 immutability
+// ---------------------------------------------------------------------------
+
+describe("原始资料 immutability", () => {
+  afterEach(cleanupEnv);
+
+  it("update rejects modification of 原始资料 page", () => {
+    const core = setupEnv();
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const configPath = path.join(home, ".feishu-wiki-config.json");
+    const existed = fs.existsSync(configPath);
+    let origContent;
+    if (existed) origContent = fs.readFileSync(configPath, "utf-8");
+
+    try {
+      fs.writeFileSync(configPath, JSON.stringify({ write_enabled: true }));
+      const pages = {
+        "某篇论文": { category: "原始资料/论文", obj_token: "ot1", node_token: "nt1", url: "" },
+      };
+      writeIndex(core, tmpDir, makeIndex(pages));
+      assert.throws(
+        () => core.update("某篇论文", "new content"),
+        (e) => e.message.includes("不可修改") && e.message.includes("原始资料")
+      );
+    } finally {
+      if (existed) fs.writeFileSync(configPath, origContent);
+      else if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    }
+  });
+
+  it("update allows modification of 原始资料 page with --force", () => {
+    const core = setupEnv();
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const configPath = path.join(home, ".feishu-wiki-config.json");
+    const existed = fs.existsSync(configPath);
+    let origContent;
+    if (existed) origContent = fs.readFileSync(configPath, "utf-8");
+
+    try {
+      fs.writeFileSync(configPath, JSON.stringify({ write_enabled: true }));
+      const pages = {
+        "某篇论文": { category: "原始资料/论文", obj_token: "ot1", node_token: "nt1", url: "", obj_edit_time: "t1" },
+      };
+      writeIndex(core, tmpDir, makeIndex(pages));
+
+      const mockLark = require.cache[LARK_PATH].exports;
+      mockLark.fetchDocMarkdown = () => "# 原始内容";
+      mockLark.uploadPage = () => {};
+
+      // Should not throw with force
+      core.update("某篇论文", "appended content", { force: true });
+    } finally {
+      if (existed) fs.writeFileSync(configPath, origContent);
+      else if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    }
+  });
+
+  it("del rejects deletion of 原始资料 page", () => {
+    const core = setupEnv();
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const configPath = path.join(home, ".feishu-wiki-config.json");
+    const existed = fs.existsSync(configPath);
+    let origContent;
+    if (existed) origContent = fs.readFileSync(configPath, "utf-8");
+
+    try {
+      fs.writeFileSync(configPath, JSON.stringify({ write_enabled: true }));
+      const pages = {
+        "某篇文章": { category: "原始资料/文章", obj_token: "ot1", node_token: "nt1", url: "" },
+      };
+      writeIndex(core, tmpDir, makeIndex(pages));
+      assert.throws(
+        () => core.del("某篇文章"),
+        (e) => e.message.includes("不可删除") && e.message.includes("原始资料")
+      );
+    } finally {
+      if (existed) fs.writeFileSync(configPath, origContent);
+      else if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verifyWrite
+// ---------------------------------------------------------------------------
+
+describe("verifyWrite", () => {
+  afterEach(cleanupEnv);
+
+  it("returns ok=true for a valid page", () => {
+    const core = setupEnv();
+    const pages = {
+      "ValidPage": { category: "主题", obj_token: "ot1", node_token: "nt1", url: "", obj_edit_time: "t1" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+
+    const mockLark = require.cache[LARK_PATH].exports;
+    mockLark.fetchDocMarkdown = () =>
+      '<callout emoji="👤" background-color="light-gray-background">\n' +
+      '**创建**：TestUser（2024-01-01） · **最后更新**：TestUser（2024-01-01）\n' +
+      '</callout>\n\n# ValidPage\n\nSome content here.';
+
+    const result = core.verifyWrite("ValidPage");
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.checks.page_exists, true);
+    assert.strictEqual(result.checks.content_nonempty, true);
+    assert.deepStrictEqual(result.checks.unresolved_wikilinks, []);
+    assert.deepStrictEqual(result.checks.broken_mentions, []);
+    assert.strictEqual(result.checks.has_attribution, true);
+  });
+
+  it("returns ok=false for page with unresolved wikilinks", () => {
+    const core = setupEnv();
+    const pages = {
+      "TestPage": { category: "主题", obj_token: "ot1", node_token: "nt1", url: "", obj_edit_time: "t1" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+
+    const mockLark = require.cache[LARK_PATH].exports;
+    mockLark.fetchDocMarkdown = () =>
+      '<callout emoji="👤" background-color="light-gray-background">\n' +
+      '**创建**：TestUser（2024-01-01） · **最后更新**：TestUser（2024-01-01）\n' +
+      '</callout>\n\n# TestPage\n\nSee [[不存在的页面]] for details.';
+
+    const result = core.verifyWrite("TestPage");
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.checks.page_exists, true);
+    assert.strictEqual(result.checks.content_nonempty, true);
+    assert.ok(result.checks.unresolved_wikilinks.length > 0);
+    assert.ok(result.checks.unresolved_wikilinks[0].includes("不存在的页面"));
+  });
+
+  it("returns ok=false for nonexistent page", () => {
+    const core = setupEnv();
+    writeIndex(core, tmpDir, makeIndex({}));
+
+    const result = core.verifyWrite("NoSuchPage");
+    assert.strictEqual(result.ok, false);
+    assert.strictEqual(result.checks.page_exists, false);
+  });
+});
