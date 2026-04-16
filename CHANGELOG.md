@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.3 (2026-04-16)
+
+### 重构
+
+- **原子写入**：`saveIndex`/`saveState` 使用 write-tmp-then-rename 模式，防止进程崩溃导致 index.json/state.json 损坏
+- **QA 日志异步化**：`_logQaEvent`/`logQa` 改为追加 NDJSON 队列文件（`.cache/qa-events.ndjson`），`flushQaEvents()` 在 `sync`/`refresh` 时批量上传，主读路径零阻塞
+- **Stale 模式显式化**：索引刷新失败时标记 `freshness: "stale-fallback"` 并输出 stderr 警告，`status()` 新增 `freshness`、`last_successful_refresh_at`、`last_refresh_failed_at`、`last_refresh_error` 字段
+- **`iterPages` 封装**：集中 deprecated/category 过滤逻辑，`find`/`listPages`/`lint`/`_syncContainerPage`/`_syncRootPage` 统一使用，消除散落的 inline 判断
+
+### 测试
+
+- 新增 37 个对抗性测试（`tests/core-refactor.test.js`），覆盖原子写入、QA 队列、stale 模式、iterPages 一致性、边界条件
+
 ## 0.6.2 (2026-04-16)
 
 ### Bug 修复
