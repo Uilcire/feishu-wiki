@@ -539,3 +539,206 @@ describe("write permission check", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// QA logging enhancements
+// ---------------------------------------------------------------------------
+
+// Helper: set up env with QA logging enabled and capture QA events via lark.run mock
+function setupEnvWithQaCapture() {
+  const qaEvents = [];
+  const core = setupEnv();
+  const mockLark = require.cache[LARK_PATH].exports;
+  const origRun = mockLark.run;
+  mockLark.run = (args, opts) => {
+    if (Array.isArray(args) && args.includes("+record-upsert")) {
+      const jsonIdx = args.indexOf("--json");
+      if (jsonIdx >= 0 && args[jsonIdx + 1]) {
+        try {
+          qaEvents.push(JSON.parse(args[jsonIdx + 1]));
+        } catch { /* ignore */ }
+      }
+    }
+    return origRun ? origRun(args, opts) : { ok: true };
+  };
+  return { core, qaEvents };
+}
+
+describe("QA logging: sequence_number", () => {
+  afterEach(cleanupEnv);
+
+  it("increments across multiple find calls", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    const pages = {
+      "PageA": { category: "主题", obj_token: "ot1", url: "" },
+      "PageB": { category: "来源", obj_token: "ot2", url: "" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+
+    core.find("PageA");
+    core.find("PageB");
+    core.find("NonExistent");
+
+    // Filter to call:find events only (warmup from writeIndex also generates events)
+    const findEvents = qaEvents.filter((e) => e.event_type === "call:find");
+    assert.ok(findEvents.length >= 3, "expected at least 3 find events");
+
+    // sequence_numbers should be strictly increasing
+    for (let i = 1; i < findEvents.length; i++) {
+      assert.ok(
+        findEvents[i].sequence_number > findEvents[i - 1].sequence_number,
+        "sequence_number should strictly increase"
+      );
+    }
+    // All should be positive integers
+    for (const e of findEvents) {
+      assert.ok(typeof e.sequence_number === "number");
+      assert.ok(e.sequence_number > 0);
+    }
+  });
+});
+
+describe("QA logging: latency_ms", () => {
+  afterEach(cleanupEnv);
+
+  it("is present and >= 0 for find", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    writeIndex(core, tmpDir, makeIndex({ "X": { category: "主题", obj_token: "ot1", url: "" } }));
+    core.find("X");
+    const findEvents = qaEvents.filter((e) => e.event_type === "call:find");
+    const last = findEvents[findEvents.length - 1];
+    assert.ok(typeof last.latency_ms === "number");
+    assert.ok(last.latency_ms >= 0);
+  });
+
+  it("is present and >= 0 for fetch", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    const pages = {
+      "FetchPage": { category: "主题", obj_token: "ot1", obj_edit_time: "t1", url: "" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+
+    // Set up cached content
+    const cachePath = core.docCachePath("FetchPage");
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, "# Content", "utf-8");
+    const stateFile = path.join(tmpDir, ".cache", "state.json");
+    const state = JSON.parse(fs.readFileSync(stateFile, "utf-8"));
+    state.cached_edit_times = { "FetchPage": "t1" };
+    fs.writeFileSync(stateFile, JSON.stringify(state), "utf-8");
+
+    core.fetch("FetchPage");
+    const fetchEvents = qaEvents.filter((e) => e.event_type === "call:fetch");
+    const last = fetchEvents[fetchEvents.length - 1];
+    assert.ok(typeof last.latency_ms === "number");
+    assert.ok(last.latency_ms >= 0);
+  });
+});
+
+describe("QA logging: outcome", () => {
+  afterEach(cleanupEnv);
+
+  it("reports success for exact find match", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    writeIndex(core, tmpDir, makeIndex({ "Exact": { category: "主题", obj_token: "ot1", url: "" } }));
+    core.find("Exact");
+    const findEvents = qaEvents.filter((e) => e.event_type === "call:find" && e.input === "Exact");
+    assert.strictEqual(findEvents[findEvents.length - 1].outcome, "success");
+  });
+
+  it("reports partial for fuzzy find match", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    writeIndex(core, tmpDir, makeIndex({ "检索增强生成（RAG）": { category: "主题", obj_token: "ot1", url: "" } }));
+    core.find("RAG");
+    const findEvents = qaEvents.filter((e) => e.event_type === "call:find" && e.input === "RAG");
+    assert.strictEqual(findEvents[findEvents.length - 1].outcome, "partial");
+  });
+
+  it("reports not_found when no match", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    writeIndex(core, tmpDir, makeIndex({}));
+    core.find("Ghost");
+    const findEvents = qaEvents.filter((e) => e.event_type === "call:find" && e.input === "Ghost");
+    const last = findEvents[findEvents.length - 1];
+    assert.strictEqual(last.outcome, "not_found");
+    assert.strictEqual(last.error_type, "not_found");
+  });
+
+  it("reports cached for fetch from cache", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    writeIndex(core, tmpDir, makeIndex({ "CachedPage": { category: "主题", obj_token: "ot1", obj_edit_time: "t1", url: "" } }));
+
+    const cachePath = core.docCachePath("CachedPage");
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, "cached content", "utf-8");
+    const stateFile = path.join(tmpDir, ".cache", "state.json");
+    const state = JSON.parse(fs.readFileSync(stateFile, "utf-8"));
+    state.cached_edit_times = { "CachedPage": "t1" };
+    fs.writeFileSync(stateFile, JSON.stringify(state), "utf-8");
+
+    core.fetch("CachedPage");
+    const fetchEvents = qaEvents.filter((e) => e.event_type === "call:fetch" && e.input === "CachedPage");
+    assert.strictEqual(fetchEvents[fetchEvents.length - 1].outcome, "cached");
+  });
+
+  it("reports success for fresh fetch", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    const mockLark = require.cache[LARK_PATH].exports;
+    mockLark.fetchDocMarkdown = () => "# Fresh content";
+
+    writeIndex(core, tmpDir, makeIndex({ "FreshPage": { category: "主题", obj_token: "ot1", obj_edit_time: "t1", url: "" } }));
+    core.fetch("FreshPage");
+    const fetchEvents = qaEvents.filter((e) => e.event_type === "call:fetch" && e.input === "FreshPage");
+    assert.strictEqual(fetchEvents[fetchEvents.length - 1].outcome, "success");
+  });
+});
+
+describe("QA logging: payload_size_bytes", () => {
+  afterEach(cleanupEnv);
+
+  it("measures byte size in fetch", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    const content = "# Hello 你好世界";
+    const mockLark = require.cache[LARK_PATH].exports;
+    mockLark.fetchDocMarkdown = () => content;
+
+    writeIndex(core, tmpDir, makeIndex({ "SizePage": { category: "主题", obj_token: "ot1", obj_edit_time: "t1", url: "" } }));
+    core.fetch("SizePage");
+    const fetchEvents = qaEvents.filter((e) => e.event_type === "call:fetch" && e.input === "SizePage");
+    const last = fetchEvents[fetchEvents.length - 1];
+    assert.strictEqual(last.payload_size_bytes, Buffer.byteLength(content, "utf-8"));
+  });
+});
+
+describe("QA logging: permission denial", () => {
+  afterEach(cleanupEnv);
+
+  it("logs denied:write event when write is disabled", () => {
+    const { core, qaEvents } = setupEnvWithQaCapture();
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const configPath = path.join(home, ".feishu-wiki-config.json");
+    const existed = fs.existsSync(configPath);
+    let origContent;
+    if (existed) origContent = fs.readFileSync(configPath, "utf-8");
+
+    try {
+      fs.writeFileSync(configPath, JSON.stringify({ write_enabled: false }));
+      writeIndex(core, tmpDir, makeIndex({}, { "主题": { node_token: "nt_t", obj_token: "ot_t" } }));
+
+      assert.throws(
+        () => core.create("主题", "BlockedPage", "content"),
+        (e) => e.message.includes("学习模式")
+      );
+
+      const deniedEvents = qaEvents.filter((e) => e.event_type === "denied:write");
+      assert.ok(deniedEvents.length >= 1, "expected at least one denied:write event");
+      const last = deniedEvents[deniedEvents.length - 1];
+      assert.strictEqual(last.outcome, "denied");
+      assert.strictEqual(last.error_type, "permission_denied");
+      assert.strictEqual(last.input, "BlockedPage");
+    } finally {
+      if (existed) fs.writeFileSync(configPath, origContent);
+      else if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    }
+  });
+});
