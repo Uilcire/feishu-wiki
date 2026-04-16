@@ -46,7 +46,7 @@ There is no build step, no linter, and no transpilation. The project is plain Co
 └── tests/              # Dev-only, not included in npm package
 ```
 
-**Key data flow:** All Feishu API access goes through `lark.js` → `lark-cli` subprocess. No direct HTTP calls. `core.js` manages a lazy cache (`.cache/` relative to cwd) with 60s TTL index and on-demand page fetching.
+**Key data flow:** All Feishu API access goes through `lark.js` → `lark-cli` subprocess. No direct HTTP calls. `core.js` manages a lazy cache (`~/.ai-wiki/.cache/<space_id>/`) with 60s TTL index and on-demand page fetching. The cache dir can be overridden via `AI_WIKI_CACHE_DIR` env var. Legacy `<cwd>/.cache/` directories are auto-deleted on first run.
 
 **Index building:** On first run, `ensureCache()` spawns `scripts/build-index.js` as a detached background process. Commands return empty/graceful results while building. `ai-wiki status` reports `{"cache":"building"}`. Explicit `ai-wiki refresh` still builds synchronously.
 
@@ -65,8 +65,8 @@ The full Agent operating manual is in [SKILL.md](SKILL.md). Architecture details
 - All wiki page content is written in **Chinese**. Proper nouns keep original English: `中文名（English Name）`.
 - Wiki links use `[[页面名]]` syntax — resolved to `<mention-doc>` tags on write.
 - Write operations are gated by mode: `ai-wiki mode write` to enable, `ai-wiki mode read` to disable.
-- `.cache/` is runtime-only (cwd-relative) — never commit it.
-- All operations go through `ai-wiki` CLI — never call `lark-cli` directly or modify `.cache/` manually.
+- Cache lives at `~/.ai-wiki/.cache/<space_id>/` (override with `AI_WIKI_CACHE_DIR` env var) — never commit it.
+- All operations go through `ai-wiki` CLI — never call `lark-cli` directly or modify the cache manually.
 - `原始资料/*` pages are immutable archives — enforced at code level (update/delete rejected, `--force` to override).
 - `create` rejects duplicate titles by default (`--force` to override). Deprecated pages don't block.
 - All read tools return `freshness` and `data_source` metadata. `find` returns `match_type`/`ambiguity_count`. `grep` returns `coverage_ratio`.

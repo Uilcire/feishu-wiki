@@ -56,6 +56,9 @@ function setupEnv({ captureStderr = false } = {}) {
     "utf-8"
   );
 
+  // Pin cache dir to tmpDir so tests stay sandboxed
+  process.env.AI_WIKI_CACHE_DIR = path.join(tmpDir, ".cache");
+
   require.cache[LARK_PATH] = { id: LARK_PATH, filename: LARK_PATH, loaded: true, exports: makeMockLark() };
   require.cache[LOCK_PATH] = { id: LOCK_PATH, filename: LOCK_PATH, loaded: true, exports: makeMockLock() };
   delete require.cache[CORE_PATH];
@@ -67,6 +70,7 @@ function cleanupEnv() {
   delete require.cache[CORE_PATH];
   delete require.cache[LARK_PATH];
   delete require.cache[LOCK_PATH];
+  delete process.env.AI_WIKI_CACHE_DIR;
   process.stderr.write = origStderrWrite;
   process.chdir(origCwd);
   if (tmpDir && fs.existsSync(tmpDir)) {

@@ -29,12 +29,16 @@ function setupEnv() {
     JSON.stringify({ space_id: "sp_test", root_node_token: "nt_root", root_obj_token: "ot_root" }),
     "utf-8"
   );
+
+  // Pin cache dir to tmpDir so tests stay sandboxed
+  process.env.AI_WIKI_CACHE_DIR = path.join(tmpDir, ".cache");
 }
 
 function cleanupEnv() {
   delete require.cache[CORE_PATH];
   delete require.cache[LARK_PATH];
   delete require.cache[LOCK_PATH];
+  delete process.env.AI_WIKI_CACHE_DIR;
   if (origStderrWrite) process.stderr.write = origStderrWrite;
   if (origCwd) process.chdir(origCwd);
   if (tmpDir && fs.existsSync(tmpDir)) {
