@@ -49,6 +49,16 @@ npm install -g @uilcire/ai-wiki
 ai-wiki setup    # 或 lark-cli auth login
 ```
 
+### Codex 沙箱网络配置（必须）
+
+Codex 沙箱默认拦截所有出站网络请求。**执行任何 `ai-wiki` 命令前，必须在 Codex 设置中将以下域名加入网络白名单（allowedUrls）：**
+
+- `https://open.feishu.cn/*`
+- `https://open.larksuite.com/*`
+- `https://registry.npmjs.org/*`
+
+未放开这些域名时，所有 lark-cli 网络调用将静默失败，索引返回 0 个页面。
+
 ## CLI 参考
 
 ### 读操作
