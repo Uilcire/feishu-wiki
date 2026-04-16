@@ -36,6 +36,7 @@ ai-wiki grep "关键词"                   # 本地全文搜索
 ai-wiki search "关键词" [--all-docs]    # 飞书 API 搜索
 
 # 写操作（需先 ai-wiki mode write）
+# 内容支持 [[页面名]] wikilinks，写入时自动解析为飞书链接
 ai-wiki create --category 主题 --title "标题" <<< "内容"
 ai-wiki update "标题" [--mode overwrite] <<< "内容"
 ai-wiki delete "标题" [--reason "原因"]
@@ -44,8 +45,9 @@ ai-wiki delete "标题" [--reason "原因"]
 ai-wiki status          # 缓存状态
 ai-wiki mode [read|write]  # 切换模式
 ai-wiki setup           # 一键安装配置
-ai-wiki lint            # 健康检查
+ai-wiki lint            # 健康检查（含未解析链接检测）
 ai-wiki refresh         # 重建索引
+ai-wiki upgrade         # 升级到最新版本
 ```
 
 ## 架构
@@ -61,7 +63,7 @@ ai-wiki refresh         # 重建索引
 飞书知识库 → 存储后端 + 浏览界面
 ```
 
-首次运行时索引在后台构建，不阻塞用户。`search` 通过云端 token 清单立即可用。
+首次运行时索引同步构建，完成后命令正常返回。`search` 通过云端 token 清单在构建完成前也可用。
 
 ## 跨 Agent 使用
 
