@@ -43,6 +43,8 @@ function setupMocks(overrides = {}) {
     lint: () => ({ ok: true, issues: [], stats: {} }),
     feedback: () => ({ ok: true }),
     logQa: () => ({ ok: true }),
+    lastFetchMeta: { freshness: "cached", data_source: "disk_cache" },
+    lastIndexMeta: { freshness: "cached", data_source: "index" },
     ...overrides.core,
   };
 
@@ -134,7 +136,7 @@ describe("find command", () => {
 describe("list command", () => {
   afterEach(cleanup);
 
-  it("outputs page list as JSON", () => {
+  it("outputs page list as JSON with metadata", () => {
     const { main } = setupMocks({
       core: { listPages: () => [{ title: "A" }, { title: "B" }] },
     });
@@ -142,6 +144,8 @@ describe("list command", () => {
     const output = captured.logs.join("\n");
     assert.ok(output.includes("A"));
     assert.ok(output.includes("B"));
+    assert.ok(output.includes("freshness"));
+    assert.ok(output.includes("data_source"));
   });
 
   it("passes category filter", () => {
