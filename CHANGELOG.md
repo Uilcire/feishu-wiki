@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.2 (2026-04-16)
+
+### Bug 修复
+
+- 从 stderr 恢复 lark-cli 的 JSON 错误响应（lark-cli 失败时输出到 stderr，之前只检查 stdout 导致沙箱中错误被静默吞掉）
+- 添加 `codex.json` 白名单放开 `open.feishu.cn`、`open.larksuite.com` 出站网络，修复 Codex 沙箱中 lark-cli 网络调用全部失败的问题
+
 ## 0.6.1 (2026-04-16)
 
 ### 改进

@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.6.1
+version: 0.6.2
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
