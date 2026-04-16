@@ -13,6 +13,12 @@ policy:
 invoke:
   cli: "ai-wiki"
 
+env:
+  ensure_path: |
+    # ai-wiki 和 lark-cli 都在 npm 全局目录下
+    export PATH="$HOME/.npm-global/bin:$PATH"
+
 notes: |
-  Codex runs in a sandbox. Ensure @uilcire/ai-wiki is npm-installed
-  globally and lark-cli is available on PATH.
+  Codex runs in a sandbox. Both ai-wiki and lark-cli must be
+  npm-installed globally and reachable on PATH.
+  Run `ai-wiki setup` to verify lark-cli + auth before first use.

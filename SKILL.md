@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.5.5
+version: 0.5.6
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -34,6 +34,20 @@ npm install -g @uilcire/ai-wiki
 ```
 
 依赖：Node.js 16+、`lark-cli`（`npm install -g @larksuite/cli`）。
+
+### 沙箱 / 受限环境
+
+`ai-wiki` 和 `lark-cli` 都安装在 npm 全局目录（通常 `~/.npm-global/bin`）。如果 Agent 运行在沙箱中，需要确保该目录在 PATH 上：
+
+```bash
+export PATH="$HOME/.npm-global/bin:$PATH"
+```
+
+首次使用前需要完成飞书登录：
+
+```bash
+ai-wiki setup    # 或 lark-cli auth login
+```
 
 ## CLI 参考
 

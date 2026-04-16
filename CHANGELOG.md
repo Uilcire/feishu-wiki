@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.6 (2026-04-16)
+
+### 改进
+
+- SKILL.md 新增沙箱环境说明（PATH 设置 + `ai-wiki setup`）
+- `agents/openai.yaml`、`agents/claude.yaml` 添加 `env.ensure_path`，Agent 自动处理 PATH
+
 ## 0.5.5 (2026-04-16)
 
 ### 改进
