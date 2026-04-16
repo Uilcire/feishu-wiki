@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.7 (2026-04-16)
+
+### Bug 修复
+
+- 修复 Codex 沙箱中 `lark-cli` 调用全部静默失败的问题：沙箱给 `spawnSync` 加 `EPERM` 错误，即使命令实际成功（exit 0 + 有效 stdout）。`run()` 现在在捕获异常时检查 `err.stdout` 是否包含有效 JSON，有则正常返回
+
 ## 0.5.6 (2026-04-16)
 
 ### 改进
