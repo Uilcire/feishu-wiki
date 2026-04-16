@@ -200,6 +200,65 @@ describe("find", () => {
     const result = core.find("OldPage", { includeDeprecated: true });
     assert.strictEqual(result.title, "OldPage");
   });
+
+  it("returns match_type=exact and ambiguity_count=1 for exact match", () => {
+    const core = setupEnv();
+    const pages = {
+      "RAG": { category: "主题", obj_token: "ot_rag", node_token: "nt_rag", url: "" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+    const result = core.find("RAG");
+    assert.strictEqual(result.match_type, "exact");
+    assert.strictEqual(result.ambiguity_count, 1);
+    assert.deepStrictEqual(result.top_candidates, []);
+  });
+
+  it("returns match_type=fuzzy with ambiguity_count and top_candidates", () => {
+    const core = setupEnv();
+    const pages = {
+      "检索增强生成（RAG）": { category: "主题", obj_token: "ot1", node_token: "nt1", url: "" },
+      "RAG 评估": { category: "主题", obj_token: "ot2", node_token: "nt2", url: "" },
+      "RAG 与长上下文": { category: "主题", obj_token: "ot3", node_token: "nt3", url: "" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+    const result = core.find("RAG");
+    // No exact match for "RAG", so best is fuzzy (shortest title)
+    assert.strictEqual(result.match_type, "fuzzy");
+    assert.strictEqual(result.ambiguity_count, 3);
+    assert.strictEqual(result.top_candidates.length, 2);
+    // Each candidate has title, category, match_type
+    for (const c of result.top_candidates) {
+      assert.ok(c.title);
+      assert.ok(c.match_type);
+      assert.ok("category" in c);
+    }
+  });
+
+  it("returns freshness and data_source on find result", () => {
+    const core = setupEnv();
+    const pages = {
+      "TestPage": { category: "主题", obj_token: "ot1", node_token: "nt1", url: "" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+    const result = core.find("TestPage");
+    assert.ok(result.freshness);
+    assert.ok(result.data_source);
+  });
+
+  it("exact match with fuzzy candidates shows correct ambiguity_count", () => {
+    const core = setupEnv();
+    const pages = {
+      "RAG": { category: "主题", obj_token: "ot1", node_token: "nt1", url: "" },
+      "RAG 评估": { category: "主题", obj_token: "ot2", node_token: "nt2", url: "" },
+      "RAG 与长上下文": { category: "主题", obj_token: "ot3", node_token: "nt3", url: "" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+    const result = core.find("RAG");
+    assert.strictEqual(result.match_type, "exact");
+    // exact + 2 fuzzy = 3 total candidates
+    assert.strictEqual(result.ambiguity_count, 3);
+    assert.strictEqual(result.top_candidates.length, 2);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -303,6 +362,43 @@ describe("fetch", () => {
 
     const content = core.fetch({ title: "TestPage" });
     assert.strictEqual(content, "# Fresh");
+  });
+
+  it("sets lastFetchMeta to cached/disk_cache on cache hit", () => {
+    const core = setupEnv();
+    const pages = {
+      "TestPage": { category: "主题", obj_token: "ot1", obj_edit_time: "t1", url: "" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+
+    // Write cached doc and matching edit time
+    const cachePath = core.docCachePath("TestPage");
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, "# Cached", "utf-8");
+    const stateFile = path.join(tmpDir, ".cache", "state.json");
+    const state = JSON.parse(fs.readFileSync(stateFile, "utf-8"));
+    state.cached_edit_times = { "TestPage": "t1" };
+    fs.writeFileSync(stateFile, JSON.stringify(state), "utf-8");
+
+    core.fetch("TestPage");
+    assert.strictEqual(core.lastFetchMeta.freshness, "cached");
+    assert.strictEqual(core.lastFetchMeta.data_source, "disk_cache");
+  });
+
+  it("sets lastFetchMeta to fresh/remote_api on API fetch", () => {
+    const core = setupEnv();
+    const pages = {
+      "TestPage": { category: "主题", obj_token: "ot1", obj_edit_time: "t1", url: "" },
+    };
+    writeIndex(core, tmpDir, makeIndex(pages));
+
+    const mockLark = require.cache[LARK_PATH].exports;
+    mockLark.fetchDocMarkdown = () => "# Fresh from API";
+
+    // No cached file, so it must fetch from API
+    core.fetch("TestPage");
+    assert.strictEqual(core.lastFetchMeta.freshness, "fresh");
+    assert.strictEqual(core.lastFetchMeta.data_source, "remote_api");
   });
 });
 
