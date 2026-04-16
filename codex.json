@@ -1,0 +1,7 @@
+{
+  "allowedUrls": [
+    "https://open.feishu.cn/*",
+    "https://open.larksuite.com/*",
+    "https://registry.npmjs.org/*"
+  ]
+}
