@@ -11,6 +11,14 @@ npm install -g @uilcire/ai-wiki
 ai-wiki setup                      # 自动安装 lark-cli + 登录飞书
 ```
 
+### Codex 沙箱网络配置
+
+Codex 沙箱默认拦截出站请求，需在 allowedUrls 中添加：
+
+- `https://open.feishu.cn/*`
+- `https://open.larksuite.com/*`
+- `https://registry.npmjs.org/*`
+
 ## 使用
 
 安装好之后，打开你的 Agent（Claude Code / Codex），直接说：
@@ -85,8 +93,19 @@ ai-wiki upgrade             # 升级到最新版本
 - 所有页面由 AI Agent 编写维护，**不要在飞书 UI 里直接编辑**
 - 可以在飞书里浏览和评论，但修改请告诉你的 Agent
 - 每个主张必须有来源，不允许无出处的断言
+- `原始资料/*` 页面是不可变归档，不要修改
+- 不要删除页面，标记 `[已废弃]` 即可，Agent 会处理真正的删除
 
 详细操作手册见 [SKILL.md](SKILL.md)。
+
+## 故障排除
+
+| 问题 | 解决方法 |
+|------|----------|
+| `command not found` | `export PATH="$HOME/.npm-global/bin:$PATH"` |
+| 提示"新版本可用" | 先运行 `ai-wiki upgrade` 再继续操作 |
+| 写锁卡住 | 等 5 分钟自动释放，或执行 `ai-wiki fetch "队列" --fresh` 查看队列 |
+| 缓存损坏 | `rm -rf .cache && ai-wiki refresh` |
 
 ## License
 
