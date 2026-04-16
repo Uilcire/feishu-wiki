@@ -31,7 +31,7 @@ describe("run", () => {
     const result = lark.run(["docs", "get"]);
     assert.deepStrictEqual(result, { ok: true, data: "hello" });
     const call = execMock.mock.calls[0];
-    assert.strictEqual(call.arguments[0], "lark-cli");
+    assert.ok(call.arguments[0].includes("lark-cli"), `expected lark-cli path, got: ${call.arguments[0]}`);
     assert.deepStrictEqual(call.arguments[1], ["docs", "get"]);
   });
 

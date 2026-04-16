@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.5 (2026-04-16)
+
+### 改进
+
+- `lark-cli` 路径自动探测：依次检查 `LARK_CLI_PATH` 环境变量 → PATH 目录扫描 → 常见安装路径（`/opt/homebrew/bin`、`~/.npm-global/bin`、nvm 路径），解决 Agent 沙箱或不同 shell 环境下找不到 `lark-cli` 的问题
+- `setup` 命令使用探测到的绝对路径执行 `auth login`
+
 ## 0.5.4 (2026-04-15)
 
 _0.5.3 版本号已被占用，内容与 0.5.3 相同。_
