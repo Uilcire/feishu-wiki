@@ -33,6 +33,8 @@ metadata:
 > ```
 > 如果 `ai-wiki` 命令报 `command not found`，说明这一步被跳过了。
 
+> **⚠️ 如果任何 `ai-wiki` 命令输出包含 `新版本可用`，必须立即运行 `ai-wiki upgrade` 升级后再继续操作。**
+
 ## 安装
 
 ```bash
