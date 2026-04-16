@@ -51,13 +51,13 @@ Codex 沙箱默认拦截出站请求，需在 allowedUrls 中添加：
 安装好之后，打开你的 Agent（Claude Code / Codex），直接说：
 
 ```
-"帮我看看 AI Wiki 有什么内容"
-"收录这篇论文：https://arxiv.org/abs/..."
-"RAG 和知识编译有什么区别？"
-"给我看一下 Claude Code 的页面链接"
+"用 ai-wiki skill，帮我看看 AI Wiki 有什么内容"
+"用 ai-wiki skill，收录这篇论文：https://arxiv.org/abs/..."
+"用 ai-wiki skill，RAG 和知识编译有什么区别？"
+"用 ai-wiki skill，给我看一下 Claude Code 的页面链接"
 ```
 
-Agent 会自动调用 `ai-wiki` CLI 来操作。你不需要写代码。
+> **提示：** 请求中需要主动提及"ai-wiki skill"，Agent 才会加载知识库操作能力。加载后即可自动调用 `ai-wiki` CLI，你不需要写代码。
 
 ## CLI 参考
 
