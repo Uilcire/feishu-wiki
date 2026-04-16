@@ -207,21 +207,26 @@ ai-wiki <command> [args] [--flags] [<<< stdin_content]
 
 ```bash
 # 读
-ai-wiki find <query> [--category CAT]              → {title, category, url, ...}
-ai-wiki fetch <title> [--fresh]                     → markdown string (stdout)
-ai-wiki list [--category CAT]                       → [{title, category, ...}, ...]
-ai-wiki search <query> [--all-docs]                 → [{title, summary, url, ...}, ...]
-ai-wiki grep <pattern> [--category CAT]             → [{title, hits, lines}, ...]
+ai-wiki find <query> [--category CAT]              → {title, category, match_type, ambiguity_count, top_candidates, freshness, data_source, ...}
+ai-wiki fetch <title> [--fresh]                     → markdown string (stdout) + stderr: freshness/data_source
+ai-wiki fetch <title> --head                        → {title, category, summary, sections, freshness, data_source, ...}
+ai-wiki fetch <title> --section "名称"              → markdown substring (匹配的 H2 章节)
+ai-wiki fetch <title> --excerpt "关键词" [--window N] → 关键词上下文（带行号）
+ai-wiki list [--category CAT]                       → {results: [...], freshness, data_source}
+ai-wiki search <query> [--all-docs]                 → {results: [...], freshness, data_source, token_source}
+ai-wiki grep <pattern> [--category CAT]             → {results: [...], coverage: {cached_docs_scanned, total_pages_indexed, coverage_ratio}}
 
 # 写（需要 write_enabled=true + 自动获取写锁）
-ai-wiki create --category C --title T [--summary S] <<< content
-ai-wiki update <title> [--mode append|overwrite]     <<< content
-ai-wiki delete <title> [--reason R]
+ai-wiki create --category C --title T [--summary S] [--force] <<< content   # 重名默认拒绝
+ai-wiki update <title> [--mode append|overwrite] [--force]     <<< content   # 原始资料默认拒绝
+ai-wiki delete <title> [--reason R] [--force]                                # 原始资料默认拒绝
 
 # 管理
 ai-wiki status                                      → {cache, mode, user, pages_count, ...}
 ai-wiki mode [read|write]                           → 切换读写模式
 ai-wiki lint                                        → {ok, stats, issues: [...]}
+ai-wiki lint --title <title>                        → {ok, title, checks: {...}} (单页验证)
+ai-wiki verify-write <title>                        → {ok, title, checks: {...}} (同上)
 ai-wiki refresh                                     → 强制重建索引
 ai-wiki sync                                        → 同步日志 + flush QA 事件
 ```
@@ -259,27 +264,29 @@ _logQaEvent(eventType, input, outputSummary)
 **记录的字段**：
 ```json
 {
-  "session_id": "uuid",        // 同一进程的所有调用共享
+  "session_id": "uuid",              // 同一进程的所有调用共享
+  "sequence_number": 1,              // 会话内自增，支持离线调用序列重建
   "user_name": "alice",
-  "event_type": "call:find",   // call:find / call:fetch / call:create / ...
-  "input": "RAG",              // 调用参数（截断到 2000 字符）
-  "output_summary": "检索增强生成（RAG）",  // 输出摘要（截断到 2000 字符）
+  "event_type": "call:find",         // call:find / call:fetch / call:fetchHead / denied:write / ...
+  "input": "RAG",                    // 调用参数（截断到 2000 字符）
+  "output_summary": "检索增强生成（RAG）",
+  "latency_ms": 42,                  // 操作耗时
+  "payload_size_bytes": 1234,        // 返回内容大小（含多字节字符）
+  "outcome": "success",              // success / partial / not_found / denied / cached / error
+  "error_type": null,                // not_found / permission_denied / lark_api_error / validation_error
   "timestamp": 1713254400000,
-  "version": "0.6.3"
+  "version": "0.7.0"
 }
 ```
 
 **当前局限**：
-- 只记录"发生了什么"，不记录"为什么"和"结果是否足够"
-- 没有 `sequence_number`（无法重建调用顺序）
-- 没有 `latency_ms`（无法分析性能瓶颈）
-- 权限拒绝事件不进入日志
+- CLI 侧能记录调用事实和结果类型，但 agent 侧的意图（goal / next_action）需要通过未来的 `--trace-meta` 参数传入
 
 ---
 
-## 10. 验证系统（Lint）
+## 10. 验证系统
 
-`ai-wiki lint` 做全量知识库一致性检查：
+### 全量 Lint（`ai-wiki lint`）
 
 | 检查项 | 说明 |
 |--------|------|
@@ -289,10 +296,19 @@ _logQaEvent(eventType, input, outputSummary)
 | 未解析 wikilink | 内容中残留的 `[[...]]` 文本（应该在写入时被解析） |
 | 主题/实体覆盖度 | 每个主题/实体至少被一个来源引用 |
 
-**性能优化**：
-- 每页只 fetch 一次，结果复用
-- Map 查找（O(1) 页面和 token 检索）
-- O(n) 入链计算（不是 O(n^2)）
+**性能优化**：每页只 fetch 一次，Map 查找 O(1)，入链计算 O(n)。
+
+### 单页验证（`ai-wiki verify-write <title>` 或 `lint --title <title>`）
+
+写入后快速验证单页质量，不需要跑全量 lint：
+
+| 检查项 | 说明 |
+|--------|------|
+| page_exists | 页面是否存在于索引 |
+| content_nonempty | 内容是否非空 |
+| unresolved_wikilinks | 残留的 `[[...]]` 未解析链接 |
+| broken_mentions | `<mention-doc>` token 不在索引中 |
+| has_attribution | 是否有归属标注 callout |
 
 ---
 
@@ -331,6 +347,6 @@ CLI 需要被 `npm install -g` 快速安装到各种环境（本地、CI、Codex
 
 1. **全局锁粒度粗**：在并发度从 1-3 升到 10+ 时会成为瓶颈。当前场景不需要优化。
 2. **飞书 UI 直接编辑不会通知 CLI**：用户如果在飞书 UI 改了内容，CLI 的缓存可能过期。需要 `ai-wiki refresh` 手动刷新。
-3. **QA 日志缺少决策语义**：只记录调用事实，不记录意图和结果充分性。无法回答"这次 find 是否推进了 Agent 的目标"。
+3. **QA 日志缺少 agent 侧语义**：CLI 现在记录 outcome/latency/payload，但 agent 的意图（goal / next_action / sufficient_for_next_step）需要通过未来的 `--trace-meta` 参数传入。
 4. **权限控制只有一层**：`write_enabled` 是全有或全无的开关，没有细粒度权限（如"只允许 append 不允许 overwrite"）。
-5. **搜索依赖本地缓存**：`grep` 只搜已 fetch 过的页面，不是全量搜索。全量搜索需要用 `search`（飞书 API）。
+5. **搜索依赖本地缓存**：`grep` 只搜已 fetch 过的页面，不是全量搜索。`grep` 现在返回 `coverage_ratio` 提醒 agent 覆盖不足时改用 `search`。

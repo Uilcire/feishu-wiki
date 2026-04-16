@@ -67,5 +67,10 @@ The full Agent operating manual is in [SKILL.md](SKILL.md). Architecture details
 - Write operations are gated by mode: `ai-wiki mode write` to enable, `ai-wiki mode read` to disable.
 - `.cache/` is runtime-only (cwd-relative) — never commit it.
 - All operations go through `ai-wiki` CLI — never call `lark-cli` directly or modify `.cache/` manually.
-- `原始资料/*` pages are immutable archives — never modify after creation.
+- `原始资料/*` pages are immutable archives — enforced at code level (update/delete rejected, `--force` to override).
+- `create` rejects duplicate titles by default (`--force` to override). Deprecated pages don't block.
+- All read tools return `freshness` and `data_source` metadata. `find` returns `match_type`/`ambiguity_count`. `grep` returns `coverage_ratio`.
+- `fetch` supports `--head` (metadata only), `--section` (single H2), `--excerpt` (keyword context) modes.
+- `verify-write <title>` (or `lint --title`) validates a single page after write operations.
+- QA logging tracks `sequence_number`, `latency_ms`, `payload_size_bytes`, `outcome`, `error_type`.
 - Every new API/CLI feature must be documented in SKILL.md, CHANGELOG.md, and package.json.

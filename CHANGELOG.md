@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.7.0 (2026-04-16)
+
+### 新功能
+
+- **fetch 分级访问**：`--head`（仅元信息 + 章节列表）、`--section "名称"`（指定 H2 章节）、`--excerpt "关键词" --window N`（关键词上下文提取）、`--raw`（完整 markdown，原默认行为）
+- **读工具输出增强**：所有读操作返回 `freshness`（fresh/cached/stale-fallback/building）和 `data_source`（index/disk_cache/remote_api/cloud_tokens）
+- **find() 匹配质量**：返回 `match_type`（exact/fuzzy）、`ambiguity_count`、`top_candidates`（最多 5 个候选）
+- **grep() 覆盖率**：返回 `coverage`（cached_docs_scanned / total_pages_indexed / coverage_ratio），告知 agent 搜索覆盖了多少比例的知识库
+- **写路径硬约束**：
+  - `create` 默认拒绝重名页面（deprecated 页面不阻塞，`--force` 可绕过）
+  - `update`/`delete` 对 `原始资料/*` 做代码级保护（`--force` 可绕过）
+  - 新增 `verify-write <title>` 命令和 `lint --title <title>`：单页写入验证（存在性、内容非空、wikilink 解析、mention-doc 有效性、归属标注）
+- **QA 日志增强**：`sequence_number`（调用序列重建）、`latency_ms`、`payload_size_bytes`、`outcome`（success/partial/not_found/denied/cached/error）、`error_type`；权限拒绝事件写入日志
+
+### Bug 修复
+
+- 畸形 `~/.feishu-wiki-config.json`（无效 JSON）不再静默允许写入，改为默认拒绝 + 记录日志
+
+### 测试
+
+- 新增 108 个测试（含 fetch 模式、读工具增强、写路径硬约束、QA 日志），总计 301 个
+
 ## 0.6.3 (2026-04-16)
 
 ### 重构
