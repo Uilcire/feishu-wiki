@@ -16,9 +16,4 @@ policy:
     - "查询智能体"
 
 invoke:
-  cli: "ai-wiki"
-
-env:
-  ensure_path: |
-    # ai-wiki 和 lark-cli 都在 npm 全局目录下
-    export PATH="$HOME/.npm-global/bin:$PATH"
+  cli: 'PATH="$HOME/.npm-global/bin:$PATH" ai-wiki'

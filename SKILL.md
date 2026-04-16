@@ -27,6 +27,12 @@ metadata:
 
 **所有维基操作必须通过 `ai-wiki` CLI，禁止直接调用 `lark-cli` 或手动修改 `.cache/`。**
 
+> **⚠️ 执行任何 `ai-wiki` 命令前，必须先确保 PATH 包含 npm 全局目录：**
+> ```bash
+> export PATH="$HOME/.npm-global/bin:$PATH"
+> ```
+> 如果 `ai-wiki` 命令报 `command not found`，说明这一步被跳过了。
+
 ## 安装
 
 ```bash
@@ -34,14 +40,6 @@ npm install -g @uilcire/ai-wiki
 ```
 
 依赖：Node.js 16+、`lark-cli`（`npm install -g @larksuite/cli`）。
-
-### 沙箱 / 受限环境
-
-`ai-wiki` 和 `lark-cli` 都安装在 npm 全局目录（通常 `~/.npm-global/bin`）。如果 Agent 运行在沙箱中，需要确保该目录在 PATH 上：
-
-```bash
-export PATH="$HOME/.npm-global/bin:$PATH"
-```
 
 首次使用前需要完成飞书登录：
 
