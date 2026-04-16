@@ -216,12 +216,12 @@ describe("searchFeishu — wiki token caching", () => {
 
     // First call — should invoke loadIndex
     const r1 = search.searchFeishu("RAG");
-    assert.strictEqual(r1.length, 1);
+    assert.strictEqual(r1.results.length, 1);
     assert.strictEqual(loadIndexCount, 1, "loadIndex should be called on first searchFeishu");
 
     // Second call — should use cached tokens, NOT call loadIndex again
     const r2 = search.searchFeishu("RAG");
-    assert.strictEqual(r2.length, 1);
+    assert.strictEqual(r2.results.length, 1);
     assert.strictEqual(loadIndexCount, 1, "loadIndex should NOT be called again — tokens are cached");
   });
 
