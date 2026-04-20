@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.8.0
+version: 0.8.1
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -138,6 +138,20 @@ ai-wiki import apply [--dry-run]                 # 将 approved 条目搬入 wik
 - 每条候选有 `relevant` / `reason` / `approved` 字段，扫描不会覆盖已填写的判断（幂等合并）。
 - 只收录 `docx` 类型；sheet/bitable/file 暂不支持自动迁入。
 - `apply` 每成功一条立刻落盘，崩溃可续跑。
+
+**首次使用需申请的 lark-cli scope**（否则 `scan` / `apply` 会报 `missing_scope`）：
+
+```bash
+lark-cli auth login --scope "drive:drive drive:drive:readonly space:document:retrieve wiki:wiki wiki:node:move"
+```
+
+| scope | 用途 |
+| --- | --- |
+| `drive:drive:readonly` | `import scan` 列出云空间文件夹 |
+| `drive:drive` | `import apply` 将 docx 迁入 wiki |
+| `space:document:retrieve` | 按需拉取文档正文做相关性判断 |
+| `wiki:wiki` | 现有读写命令（create/update/delete） |
+| `wiki:node:move` | `import apply` 的 `wiki +move` 调用 |
 
 ### QA 记录
 

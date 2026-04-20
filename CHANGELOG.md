@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 (2026-04-20)
+
+### 改进
+
+- **scope 申请明确化**：`ai-wiki setup` 登录时自动申请 `drive:drive drive:drive:readonly space:document:retrieve wiki:wiki wiki:node:move`，避免 import 首次使用时遇到 `missing_scope`
+- SKILL.md 新增首次使用需申请的 scope 清单
+
 ## 0.8.0 (2026-04-20)
 
 ### 新功能
