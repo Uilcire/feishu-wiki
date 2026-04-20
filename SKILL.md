@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.9.6
+version: 0.9.7
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -139,8 +139,17 @@ ai-wiki upgrade                 # 检查并升级到最新版本
 > **重要：双 wiki 模型**
 >
 > 本系统维护**两个并存但独立**的知识库：
-> - **AI Wiki**（默认，本手册其余命令的目标）—— 主题：**AI / AI Agents**。`find` / `grep` / `search` / `create` / `update` / `delete` 全部作用于此。
-> - **技术库 / Large Base Engineering**（仅 `import` 用）—— 主题：**飞书多维表格（Base）的引擎架构、性能优化、存储设计、公式引擎、协同编辑 —— 与 Base 引擎实现相关的技术内容**。只有 `import apply` 会把文档搬进这里；其他任何命令都不碰。
+> - **AI Wiki**（默认，本手册其余命令的目标）—— 主题：**AI / AI Agents**（通用 AI 理论、论文、工具、框架）。`find` / `grep` / `search` / `create` / `update` / `delete` 全部作用于此。
+> - **技术库 / Large Base Engineering**（仅 `import` 用）—— 覆盖 Lark Base（飞书多维表格）与 AI/LLM 深度融合的全部工程知识，含 **7 大主题**：
+>   1. **Base AI 产品能力** —— AI 字段、Autofill、AI 侧边栏、floating、Inline Mode、IM Extension、Automation AI 节点、问卷 AI、扩展字段、Object 业务、Inline 仪表盘、AI 建表、生成选项、推荐关联记录、相似记录、记录/Base 总结、AskBase
+>   2. **LLM Agent 架构** —— Super Agent / Building Agent / Base Agent / 找人 Agent / IKnow Agent / 数据分析 Agent / Harness Engineering / AI Native 研发、BDSL、Copilot、多轮交互、工具调用、prompt 工程、主动式 AI
+>   3. **大模型工程基建** —— 模型接入 (doubao / OpenAI)、SFT / Pretrain / 微调、RAG、向量数据库、ES (Embedding Service)、训练数据构建、AI2DSL、限流 / 精细化流量控制、灰度、对话机器人
+>   4. **评测体系** —— 评测集、效果评测、模型评测、自动化评测、AI Code Review 评测、字段推荐评测、合成数据、效果提升周会
+>   5. **研发规范与流程** —— 需求开发流程、Code Review / CR Checklist、技术方案模板、接口生成 / IDL、埋点规范、架构评审、术语表、人员地图
+>   6. **稳定性与运维** —— 观测、保障、止损、故障、治理、SLO、告警、容量、降级
+>   7. **产品与前沿调研** —— AI Native、No-Code / 无代码、结构化数据问答、主动式 AI、办公智能化、企业 2B、竞品调研
+>
+> 只有 `import apply` 会把文档搬进技术库；其他任何命令都不碰。
 
 > **触发规则（强制）**：用户说"**批量导入**"、"**批量录入**"、"**批量收录**"、"导入/录入我的文档"、"导入/录入个人空间"、"导入/录入文件夹" 或任何语义等价的表达时（**"录入" 与 "导入" 同义**），Agent **必须**走本章节的 `import` 流程：从**飞书个人云空间（Drive）** 找源文档，搬入**技术库**（不是 AI Wiki）。**禁止**使用 `find` / `grep` / `search`（那些只查 AI Wiki）。
 >
@@ -148,22 +157,34 @@ ai-wiki upgrade                 # 检查并升级到最新版本
 
 > **相关性判断必须基于内容，禁止套模板（强制）**
 >
-> `import` 的相关性是"与 **Large Base Engineering** 主题是否相关"——**不是** AI / AI Agents。具体范围见上方"双 wiki 模型"。
+> `import` 的相关性是"与 **Large Base Engineering 技术库**是否相关"——**不是** AI / AI Agents。具体范围见上方 7 大主题。
 >
 > Agent 在 `mark <token>` 之前**必须**先读过文档的真实内容（至少标题 + 首节）。推荐命令：
 > ```bash
 > lark-cli docs +fetch --as user --doc <token>   # 拉 Markdown 正文
 > ```
-> 然后写出**基于真实内容**的 `--reason`，指明"这篇讲了 Base 引擎的什么"或"这篇跟 Base 工程无关（它是 X 主题）"。
+> 然后写出**基于真实内容**的 `--reason`，指明"这篇讲了技术库的哪个主题"或"这篇跟技术库无关（它是 X 主题）"。
+>
+> **判断原则（宽进严出）**：
+>
+> - **"拿不准就 `relevant=true`"** —— 漏掉比误包含代价高。只要文档沾到 7 大主题的**任一子方向**，就算相关。用户会在 approve 前看到完整清单，容易排除。
+> - **反例很窄**，只有以下才判 `relevant=false`：
+>   - 个人周报 / 日历 / 日程 / 行政事务
+>   - **纯** AI 论文通识（不涉及 Base 或 Agent 落地）
+>   - 非 Base / 非 Lark 的其他产品文档
+>   - HR / 招聘材料
+> - 任何带 Base / 多维表格 / bitable / Lark / Agent / LLM / 大模型 / AI 字段 / Autofill / Code Review / 稳定性 / 评测 / AI Native 等关键词，或明显属于 Base AI 团队日常工作的，**默认 `relevant=true`**
 >
 > **禁止的模板理由示例**（会被视为未做判断）：
 > - `"<标题>，与 AI/AI Agents 相关的内容"` ❌
 > - `"<标题>，相关"` ❌
-> - 任何对所有候选套同一模板的 reason ❌
+> - 对所有候选套同一模板的 reason ❌
 >
 > **合格理由示例**：
-> - `"论文讨论 Base 公式引擎的增量计算，与 Base 引擎架构强相关"` ✅
-> - `"AI 前沿分享，讲 Claude Code 架构，跟 Base 无关 —— 应收录进 AI Wiki 而非技术库"` ✅
+> - `"讲 Base AI 字段的 Autofill 后端方案 → 主题 1 Base AI 产品能力"` ✅
+> - `"Code Review 规范 → 主题 5 研发规范"` ✅
+> - `"个人周报，与技术库无关"` ✅
+> - `"拿不准：标题'技术评审 0312' 无法判断，已 fetch 内容确认讲 floating 架构 → 相关"` ✅
 
 将个人云空间（Drive）里的 docx 批量迁入知识库：
 

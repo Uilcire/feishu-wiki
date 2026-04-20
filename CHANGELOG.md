@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.7 (2026-04-20)
+
+### 修复 — 技术库主题描述严重偏窄
+
+前几版把 Large Base Engineering 主题写成"Base 引擎架构/性能/存储/公式/协同"——subagent 扫完真实技术库节点（`J5EiwTOqiiBUwhkM99TcnrrNn9c`）后发现**实际覆盖 7 大主题**，原描述漏了 80%，导致 Agent 把 Agent 架构、评测、研发规范、稳定性、调研等大量相关文档错判 irrelevant。
+
+### SKILL.md 主题描述重写为 7 大主题
+1. Base AI 产品能力（AI 字段 / Autofill / 侧边栏 / floating / Automation 等）
+2. LLM Agent 架构（Super Agent / Harness Engineering / BDSL 等）
+3. 大模型工程基建（微调 / RAG / 限流 / prompt 工程）
+4. 评测体系
+5. 研发规范（CR / IDL / 技术方案）
+6. 稳定性与运维
+7. 产品与前沿调研（AI Native / 结构化数据问答）
+
+### 判断原则改为"宽进严出"
+- 只有个人周报 / 纯 AI 论文 / 非 Base 产品文档 / HR 材料才判 `relevant=false`
+- 其余任何沾到关键词或主题的文档默认 `relevant=true`
+- 漏掉比误包含代价高，用户在 approve 前看完整清单更容易排除
+
 ## 0.9.6 (2026-04-20)
 
 ### 改进
