@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.8.2
+version: 0.8.3
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -132,12 +132,12 @@ ai-wiki upgrade                 # 检查并升级到最新版本
 
 > **触发规则（强制）**：用户说"**批量导入**"、"导入我的文档"、"导入个人空间"、"导入文件夹" 或任何语义等价的表达时，Agent **必须**走本章节的 `import` 流程，从**飞书个人云空间（Drive）** 中查找文档，**禁止**使用 `find` / `grep` / `search`（那些只看 AI Wiki 自身，不是用户的个人文档）。
 >
-> 若用户没给 `folder_token`（通常是云空间 URL 中 `/drive/folder/<token>` 的那段），**先向用户索要文件夹链接**，不要擅自在 wiki 里搜索代替。
+> 若用户没给 `folder_token`（通常是云空间 URL 中 `/drive/folder/<token>` 的那段），**直接跑 `ai-wiki import scan`（不带参数）** —— 会扫描「我的空间」根目录（仅第一页，不含快捷方式）。需要深入某个子文件夹时再向用户索要链接。**禁止**改用 `find` / `grep` / `search` 代替。
 
 将个人云空间（Drive）里的 docx 批量迁入知识库，三步流程：
 
 ```bash
-ai-wiki import scan <folder_token>               # 递归扫描文件夹，写入候选清单
+ai-wiki import scan [folder_token]               # 扫描文件夹；省略 = 扫「我的空间」根目录
 ai-wiki import list                              # 查看需要关注的候选（默认）
 ai-wiki import list --pending|--approved|--imported|--all
 ai-wiki import apply [--dry-run]                 # 将 approved 条目搬入 wiki（需写模式）

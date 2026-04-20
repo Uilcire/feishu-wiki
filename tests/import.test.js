@@ -131,6 +131,25 @@ describe("scanDriveFolder", () => {
     assert.strictEqual(b.parent_path, "子目录");
   });
 
+  it("empty folder_token scans user cloud root", () => {
+    setup();
+    const calls = [];
+    const mockLark = {
+      listDriveChildren: (token) => {
+        calls.push(token);
+        if (token === "") return [
+          { token: "docR", type: "docx", name: "Root doc", url: "u", parent_token: "" },
+        ];
+        return [];
+      },
+    };
+    const imp = loadImport(mockLark);
+    const out = imp.scanDriveFolder("");
+    assert.strictEqual(out.length, 1);
+    assert.strictEqual(out[0].title, "Root doc");
+    assert.strictEqual(calls[0], "");
+  });
+
   it("skips non-docx types (sheet, bitable, file)", () => {
     setup();
     const mockLark = {
