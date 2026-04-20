@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.9.3
+version: 0.9.4
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -177,7 +177,8 @@ ai-wiki import mark <token> --relevant true|false [--reason R]
 ai-wiki import approve <token>... | --all-relevant
 ai-wiki import reject <token>...
 ai-wiki import reset <token>... | --all          # 重置判断字段回 pending（已导入条目不动）
-ai-wiki import apply [--dry-run]                 # 将 approved 条目搬入 wiki（需写模式）
+ai-wiki import apply                              # 默认预览（等价 --dry-run）
+ai-wiki import apply --yes                        # 真正搬运（需写模式 + 用户明确批准）
 ```
 
 > **🚫 Agent 禁止直接编辑 `~/.ai-wiki/import-candidates.json`。** 所有状态变更必须通过 `mark` / `approve` / `reject` 命令（多数 Agent 沙箱无法写入 `$HOME`，用 CLI 既能绕过沙箱又能审计操作历史）。
@@ -185,9 +186,17 @@ ai-wiki import apply [--dry-run]                 # 将 approved 条目搬入 wik
 **Agent 典型流程**：
 1. `scan`（无参或带 folder_token）→ 产出候选
 2. `list --pending` → 看到待判断条目
-3. 对每个候选 `mark <token> --relevant true|false --reason "..."` 做判断
-4. 把 `relevant=true` 的汇报给用户让其拍板 → 用户批准后 `approve --all-relevant`（或按 token 批）
-5. `apply` 执行搬运
+3. 对每个候选**先 `lark-cli docs +fetch --as user --doc <token>` 读内容**，再 `mark <token> --relevant true|false --reason "基于实际内容的判断"`
+4. 把 `relevant=true` 的清单**逐条列给用户**（标题 + reason），等用户明确批准
+5. 用户批准后才能 `approve ...` + `apply --yes`
+
+> **🛑 搬运前必须征得用户批准（强制）**
+>
+> `import apply` **默认是预览模式**（等价于 `--dry-run`）—— 不会动任何飞书数据，只打印会搬哪些。要真正搬运必须显式加 `--yes`。
+>
+> Agent **必须**遵循："先无 `--yes` 跑一遍 → 把预览 + 候选清单给用户看 → 等用户说「批准 / 同意 / 确认」之类明确同意词 → 才能跑 `--yes`"。
+>
+> **禁止**在用户没回应或回应含糊时自行加 `--yes`。用户说"看看"、"可以吗"、"你觉得呢" 都不算批准。用户必须主动、明确地说同意。
 
 - 候选清单默认存在 `~/.ai-wiki/import-candidates.json`。
 - 每条候选有 `relevant` / `reason` / `approved` 字段，扫描不会覆盖已填写的判断（幂等合并）。

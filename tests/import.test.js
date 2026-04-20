@@ -536,7 +536,7 @@ describe("import CLI smoke", () => {
         applyImport: () => ({ attempted: 1, succeeded: 1, failed: 0, skipped: 0 }),
       });
       try {
-        main(["import", "apply"]);
+        main(["import", "apply", "--yes"]);
         assert.strictEqual(coreCalls.refresh, 1);
         assert.strictEqual(coreCalls.syncRootPage, 1);
       } finally {
@@ -629,7 +629,7 @@ describe("import CLI smoke", () => {
         applyImport: () => ({ attempted: 1, succeeded: 1, failed: 0, skipped: 0 }),
       });
       try {
-        main(["import", "apply"]);
+        main(["import", "apply", "--yes"]);
         const out = captured.logs.join("\n");
         // 应该仍然打印了成功的 summary，并带上 sync_error
         assert.ok(out.includes("\"succeeded\": 1"));
@@ -729,6 +729,49 @@ describe("import CLI smoke", () => {
     }
   });
 
+  it("`import apply` without --yes is preview only (no sync, no writes)", () => {
+    setup();
+    const home = process.env.HOME || process.env.USERPROFILE || "";
+    const cfgPath = path.join(home, ".feishu-wiki-config.json");
+    const existed = fs.existsSync(cfgPath);
+    let orig;
+    if (existed) orig = fs.readFileSync(cfgPath, "utf-8");
+    try {
+      fs.writeFileSync(cfgPath, JSON.stringify({ write_enabled: true }));
+      const CORE_PATH = require.resolve(path.join(PROJ, "lib/core.js"));
+      const coreCalls = { refresh: 0 };
+      require.cache[CORE_PATH] = {
+        id: CORE_PATH, filename: CORE_PATH, loaded: true,
+        exports: {
+          refresh: () => { coreCalls.refresh++; },
+          syncRootPage: () => {},
+        },
+      };
+      let applyArg = null;
+      const { main, captured, restore } = setupCmdMocks({
+        applyImport: (arg) => {
+          applyArg = arg;
+          return { attempted: 1, succeeded: 0, failed: 0, skipped: 0 };
+        },
+      });
+      try {
+        main(["import", "apply"]);
+        // 必须以 dryRun:true 传给 applyImport
+        assert.strictEqual(applyArg.dryRun, true);
+        // sync 不应发生
+        assert.strictEqual(coreCalls.refresh, 0);
+        // 输出应包含 dry_run:true
+        assert.ok(captured.logs.join("\n").includes("\"dry_run\": true"));
+      } finally {
+        restore();
+        delete require.cache[CORE_PATH];
+      }
+    } finally {
+      if (existed) fs.writeFileSync(cfgPath, orig);
+      else if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
+    }
+  });
+
   it("`import apply` blocked in read mode", () => {
     setup();
     const home = process.env.HOME || process.env.USERPROFILE || "";
@@ -742,7 +785,7 @@ describe("import CLI smoke", () => {
         applyImport: () => ({ attempted: 0, succeeded: 0, failed: 0, skipped: 0 }),
       });
       try {
-        assert.throws(() => main(["import", "apply"]), /EXIT_1/);
+        assert.throws(() => main(["import", "apply", "--yes"]), /EXIT_1/);
         assert.ok(captured.errors.some((e) => e.includes("学习模式")));
       } finally {
         restore();
