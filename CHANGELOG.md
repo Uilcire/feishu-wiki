@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.6 (2026-04-20)
+
+### 改进
+
+- **`ai-wiki setup` 默认申请 `base:record:write` scope**：允许 QA 遥测写入共享 Base（前提是 Base 所有者开了权限）。SKILL.md / README 三处 scope 列表同步更新。
+
 ## 0.9.5 (2026-04-20)
 
 ### 文档

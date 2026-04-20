@@ -86,7 +86,7 @@ ai-wiki import reset <token>... | --all           # 清除判断回 pending，�
 首次使用需把以下 scope 加入 lark-cli 登录：
 
 ```bash
-lark-cli auth login --scope "drive:drive drive:drive:readonly space:document:retrieve wiki:wiki wiki:node:move"
+lark-cli auth login --scope "drive:drive drive:drive:readonly space:document:retrieve wiki:wiki wiki:node:move base:record:write"
 ```
 （`ai-wiki setup` 会自动申请。）
 

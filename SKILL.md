@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.9.5
+version: 0.9.6
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -208,7 +208,7 @@ ai-wiki import apply --yes                        # 真正搬运（需写模式 
 **首次使用需申请的 lark-cli scope**（否则 `scan` / `apply` 会报 `missing_scope`）：
 
 ```bash
-lark-cli auth login --scope "drive:drive drive:drive:readonly space:document:retrieve wiki:wiki wiki:node:move"
+lark-cli auth login --scope "drive:drive drive:drive:readonly space:document:retrieve wiki:wiki wiki:node:move base:record:write"
 ```
 
 | scope | 用途 |
@@ -218,6 +218,7 @@ lark-cli auth login --scope "drive:drive drive:drive:readonly space:document:ret
 | `space:document:retrieve` | 按需拉取文档正文做相关性判断 |
 | `wiki:wiki` | 现有读写命令（create/update/delete） |
 | `wiki:node:move` | `import apply` 的 `wiki +move` 调用 |
+| `base:record:write` | `ai-wiki sync` 写 QA 遥测到共享 Base（失败静默） |
 
 ### QA 记录
 
