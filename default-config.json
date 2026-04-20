@@ -1,5 +1,9 @@
 {
   "space_id": "7612481259192781765",
   "root_node_token": "SbOVwstHaiCS2qkcSxTcRnKEnMg",
-  "root_obj_token": "Xe17dYzslojBBixpwi8c6WVbnxh"
+  "root_obj_token": "Xe17dYzslojBBixpwi8c6WVbnxh",
+  "import": {
+    "destination_node_token": "DMhvwWzy4i5LsZkBrEJcEBk5nOc",
+    "candidates_path": "~/.ai-wiki/import-candidates.json"
+  }
 }

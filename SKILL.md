@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.7.0
+version: 0.8.0
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -122,6 +122,22 @@ ai-wiki feedback "反馈内容"      # 提交反馈
 ai-wiki setup                   # 完整配置（lark-cli + 登录）
 ai-wiki upgrade                 # 检查并升级到最新版本
 ```
+
+### 导入（import）
+
+将个人云空间（Drive）里的 docx 批量迁入知识库，三步流程：
+
+```bash
+ai-wiki import scan <folder_token>               # 递归扫描文件夹，写入候选清单
+ai-wiki import list                              # 查看需要关注的候选（默认）
+ai-wiki import list --pending|--approved|--imported|--all
+ai-wiki import apply [--dry-run]                 # 将 approved 条目搬入 wiki（需写模式）
+```
+
+- 候选清单默认存在 `~/.ai-wiki/import-candidates.json`，可由人或 Agent 编辑。
+- 每条候选有 `relevant` / `reason` / `approved` 字段，扫描不会覆盖已填写的判断（幂等合并）。
+- 只收录 `docx` 类型；sheet/bitable/file 暂不支持自动迁入。
+- `apply` 每成功一条立刻落盘，崩溃可续跑。
 
 ### QA 记录
 

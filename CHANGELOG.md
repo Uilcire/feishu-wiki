@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 (2026-04-20)
+
+### 新功能
+
+- **批量导入**：新增 `ai-wiki import scan/list/apply` 三步流程，将云空间 docx 迁入知识库
+  - `lark.listDriveChildren` 基于 `drive files list`，自动分页递归扫描
+  - `lark.moveDocToWiki` 基于 `wiki +move --obj-type/--obj-token`
+  - 候选清单幂等合并，`approved` 条目才会搬入；每条成功即落盘，崩溃可续跑
+  - 新增配置项 `import.destination_node_token` 和 `import.candidates_path`
+  - `apply` 受写模式门禁
+
 ## 0.7.1 (2026-04-16)
 
 ### 改进
