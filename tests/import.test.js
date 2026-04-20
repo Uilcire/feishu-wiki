@@ -312,6 +312,88 @@ describe("applyImport", () => {
 });
 
 // ---------------------------------------------------------------------------
+// patchCandidates / approveAllRelevant
+// ---------------------------------------------------------------------------
+
+describe("patchCandidates", () => {
+  afterEach(cleanup);
+
+  function seed(entries) {
+    setup();
+    const p = path.join(tmpDir, "c.json");
+    fs.writeFileSync(p, JSON.stringify(entries));
+    return p;
+  }
+
+  it("marks matched tokens with patch fields and saves", () => {
+    const p = seed([
+      { token: "a", title: "A", relevant: null, approved: false },
+      { token: "b", title: "B", relevant: null, approved: false },
+    ]);
+    const imp = loadImport({});
+    const { matched, missing } = imp.patchCandidates(p, ["a"], {
+      relevant: true,
+      reason: "核心",
+    });
+    assert.deepStrictEqual(matched, ["a"]);
+    assert.deepStrictEqual(missing, []);
+    const saved = JSON.parse(fs.readFileSync(p, "utf-8"));
+    assert.strictEqual(saved[0].relevant, true);
+    assert.strictEqual(saved[0].reason, "核心");
+    assert.strictEqual(saved[1].relevant, null);
+  });
+
+  it("returns missing tokens without writing if none match", () => {
+    const p = seed([{ token: "a", title: "A", approved: false }]);
+    const before = fs.statSync(p).mtimeMs;
+    const imp = loadImport({});
+    const { matched, missing } = imp.patchCandidates(p, ["zzz"], { approved: true });
+    assert.deepStrictEqual(matched, []);
+    assert.deepStrictEqual(missing, ["zzz"]);
+    // File untouched
+    assert.strictEqual(fs.statSync(p).mtimeMs, before);
+  });
+
+  it("approves multiple tokens in one call", () => {
+    const p = seed([
+      { token: "a", approved: false },
+      { token: "b", approved: false },
+      { token: "c", approved: false },
+    ]);
+    const imp = loadImport({});
+    const { matched } = imp.patchCandidates(p, ["a", "c"], { approved: true });
+    assert.deepStrictEqual(matched.sort(), ["a", "c"]);
+    const saved = JSON.parse(fs.readFileSync(p, "utf-8"));
+    assert.strictEqual(saved[0].approved, true);
+    assert.strictEqual(saved[1].approved, false);
+    assert.strictEqual(saved[2].approved, true);
+  });
+});
+
+describe("approveAllRelevant", () => {
+  afterEach(cleanup);
+
+  it("approves only entries with relevant=true", () => {
+    setup();
+    const p = path.join(tmpDir, "c.json");
+    fs.writeFileSync(p, JSON.stringify([
+      { token: "a", relevant: true, approved: false },
+      { token: "b", relevant: false, approved: false },
+      { token: "c", relevant: null, approved: false },
+      { token: "d", relevant: true, approved: true },
+    ]));
+    const imp = loadImport({});
+    const affected = imp.approveAllRelevant(p);
+    assert.deepStrictEqual(affected, ["a"]);
+    const saved = JSON.parse(fs.readFileSync(p, "utf-8"));
+    assert.strictEqual(saved[0].approved, true);
+    assert.strictEqual(saved[1].approved, false);
+    assert.strictEqual(saved[2].approved, false);
+    assert.strictEqual(saved[3].approved, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CLI smoke tests
 // ---------------------------------------------------------------------------
 
@@ -522,6 +604,90 @@ describe("import CLI smoke", () => {
     } finally {
       if (existed) fs.writeFileSync(cfgPath, orig);
       else if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
+    }
+  });
+
+  it("`import mark` routes to patchCandidates with relevant + reason", () => {
+    setup();
+    const calls = [];
+    const { main, restore } = setupCmdMocks({
+      patchCandidates: (p, tokens, patch) => {
+        calls.push({ tokens, patch });
+        return { matched: tokens, missing: [] };
+      },
+    });
+    try {
+      main(["import", "mark", "docA", "--relevant", "true", "--reason", "核心"]);
+      assert.strictEqual(calls.length, 1);
+      assert.deepStrictEqual(calls[0].tokens, ["docA"]);
+      assert.strictEqual(calls[0].patch.relevant, true);
+      assert.strictEqual(calls[0].patch.reason, "核心");
+    } finally {
+      restore();
+    }
+  });
+
+  it("`import mark` without --relevant exits 1", () => {
+    setup();
+    const { main, captured, restore } = setupCmdMocks({
+      patchCandidates: () => ({ matched: [], missing: [] }),
+    });
+    try {
+      assert.throws(() => main(["import", "mark", "docA"]), /EXIT_1/);
+      assert.ok(captured.errors.some((e) => e.includes("--relevant")));
+    } finally {
+      restore();
+    }
+  });
+
+  it("`import approve` routes to patchCandidates with approved=true", () => {
+    setup();
+    const calls = [];
+    const { main, restore } = setupCmdMocks({
+      patchCandidates: (p, tokens, patch) => {
+        calls.push({ tokens, patch });
+        return { matched: tokens, missing: [] };
+      },
+    });
+    try {
+      main(["import", "approve", "a", "b"]);
+      assert.deepStrictEqual(calls[0].tokens, ["a", "b"]);
+      assert.strictEqual(calls[0].patch.approved, true);
+    } finally {
+      restore();
+    }
+  });
+
+  it("`import approve --all-relevant` uses approveAllRelevant", () => {
+    setup();
+    let invoked = 0;
+    const { main, restore } = setupCmdMocks({
+      approveAllRelevant: () => { invoked++; return ["x", "y"]; },
+      patchCandidates: () => { throw new Error("should not be called"); },
+    });
+    try {
+      main(["import", "approve", "--all-relevant"]);
+      assert.strictEqual(invoked, 1);
+    } finally {
+      restore();
+    }
+  });
+
+  it("`import reject` sets approved=false and relevant=false", () => {
+    setup();
+    const calls = [];
+    const { main, restore } = setupCmdMocks({
+      patchCandidates: (p, tokens, patch) => {
+        calls.push(patch);
+        return { matched: tokens, missing: [] };
+      },
+    });
+    try {
+      main(["import", "reject", "bad1"]);
+      assert.strictEqual(calls[0].approved, false);
+      assert.strictEqual(calls[0].relevant, false);
+    } finally {
+      restore();
     }
   });
 

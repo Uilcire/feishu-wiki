@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.8.3
+version: 0.9.0
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -134,16 +134,30 @@ ai-wiki upgrade                 # 检查并升级到最新版本
 >
 > 若用户没给 `folder_token`（通常是云空间 URL 中 `/drive/folder/<token>` 的那段），**直接跑 `ai-wiki import scan`（不带参数）** —— 会扫描「我的空间」根目录（仅第一页，不含快捷方式）。需要深入某个子文件夹时再向用户索要链接。**禁止**改用 `find` / `grep` / `search` 代替。
 
-将个人云空间（Drive）里的 docx 批量迁入知识库，三步流程：
+将个人云空间（Drive）里的 docx 批量迁入知识库：
 
 ```bash
 ai-wiki import scan [folder_token]               # 扫描文件夹；省略 = 扫「我的空间」根目录
-ai-wiki import list                              # 查看需要关注的候选（默认）
+ai-wiki import list                              # 查看需要关注的候选
 ai-wiki import list --pending|--approved|--imported|--all
+
+# 状态变更（Agent 通过这些命令修改候选 —— 禁止直接编辑 JSON 文件）
+ai-wiki import mark <token> --relevant true|false [--reason R]
+ai-wiki import approve <token>... | --all-relevant
+ai-wiki import reject <token>...
 ai-wiki import apply [--dry-run]                 # 将 approved 条目搬入 wiki（需写模式）
 ```
 
-- 候选清单默认存在 `~/.ai-wiki/import-candidates.json`，可由人或 Agent 编辑。
+> **🚫 Agent 禁止直接编辑 `~/.ai-wiki/import-candidates.json`。** 所有状态变更必须通过 `mark` / `approve` / `reject` 命令（多数 Agent 沙箱无法写入 `$HOME`，用 CLI 既能绕过沙箱又能审计操作历史）。
+
+**Agent 典型流程**：
+1. `scan`（无参或带 folder_token）→ 产出候选
+2. `list --pending` → 看到待判断条目
+3. 对每个候选 `mark <token> --relevant true|false --reason "..."` 做判断
+4. 把 `relevant=true` 的汇报给用户让其拍板 → 用户批准后 `approve --all-relevant`（或按 token 批）
+5. `apply` 执行搬运
+
+- 候选清单默认存在 `~/.ai-wiki/import-candidates.json`。
 - 每条候选有 `relevant` / `reason` / `approved` 字段，扫描不会覆盖已填写的判断（幂等合并）。
 - 只收录 `docx` 类型；sheet/bitable/file 暂不支持自动迁入。
 - `apply` 每成功一条立刻落盘，崩溃可续跑。

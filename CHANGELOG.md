@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 (2026-04-20)
+
+### 新功能
+
+- **候选状态命令化**：新增 `ai-wiki import mark / approve / reject` 三条子命令
+  - `mark <token> --relevant true|false [--reason R]` —— 打相关性判断
+  - `approve <token>... | --all-relevant` —— 批准单个 / 批量所有 relevant=true
+  - `reject <token>...` —— 拒绝（approved=false, relevant=false）
+- 解决 Agent 沙箱无法写入 `~/.ai-wiki/import-candidates.json` 的痛点：全部状态变更通过 CLI，不再需要直接 Edit JSON
+- `lib/import.js` 导出 `patchCandidates` / `approveAllRelevant` 基础原语
+
+### 文档
+
+- SKILL.md 导入章节加入 Agent 典型流程（scan → list → mark → approve → apply），并**强制禁止**直接编辑候选 JSON
+
 ## 0.8.3 (2026-04-20)
 
 ### 改进
