@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.9.4
+version: 0.9.5
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -187,8 +187,10 @@ ai-wiki import apply --yes                        # 真正搬运（需写模式 
 1. `scan`（无参或带 folder_token）→ 产出候选
 2. `list --pending` → 看到待判断条目
 3. 对每个候选**先 `lark-cli docs +fetch --as user --doc <token>` 读内容**，再 `mark <token> --relevant true|false --reason "基于实际内容的判断"`
-4. 把 `relevant=true` 的清单**逐条列给用户**（标题 + reason），等用户明确批准
-5. 用户批准后才能 `approve ...` + `apply --yes`
+4. **一次性**列出所有 `relevant=true` 的清单给用户（格式：`<序号>. <标题> — <reason>`），询问 **"以上 N 条是否全部批准导入？"**，等用户一次回复（"批准" / "同意" / "确认" / "可以"）即代表**全部批准**
+5. 用户批准后连续跑 `approve --all-relevant` + `apply`（预览）+ 展示预览 summary + `apply --yes`
+
+> **🛑 禁止逐条问审批。** 用户说一次"批准"就代表批准全部 `relevant=true` 清单。若用户想排除其中几条，他会主动说"除了 X、Y 都可以"—— 此时用 `reject` 或 `mark --relevant false` 去掉那几条，再继续 `approve --all-relevant`。一条一条问是骚扰。
 
 > **🛑 搬运前必须征得用户批准（强制）**
 >

@@ -90,6 +90,143 @@ lark-cli auth login --scope "drive:drive drive:drive:readonly space:document:ret
 ```
 （`ai-wiki setup` 会自动申请。）
 
+### 端到端教程
+
+以下是一次完整的批量导入流程，演示每步会看到什么。
+
+#### Step 0 — 前置检查（一次性）
+
+```bash
+# 确认 CLI 在 PATH 里
+export PATH="$HOME/.npm-global/bin:$PATH"
+
+# 确认已登录 + scope 齐全
+ai-wiki user
+# → {"name":"...","open_id":"..."}
+
+# 确认 import 目的地已配置
+ai-wiki status
+# → {"cache":"ready","pages":N}
+```
+
+如果 `user` 返回 `unknown`，跑 `ai-wiki setup`。
+
+#### Step 1 — 告诉 Agent"批量录入"
+
+任何一个触发词（"批量录入 / 批量导入 / 批量收录 / 导入我的文档"）都会让 Agent 走 import 流程。**不需要**给 folder_token，Agent 会默认扫"我的空间"根目录。
+
+> 需要扫**子文件夹**时给 Agent 贴云空间 URL：
+> `https://bytedance.larkoffice.com/drive/folder/<folder_token>`
+
+#### Step 2 — Agent 扫描
+
+```bash
+ai-wiki import scan
+```
+
+输出（示例）：
+
+```json
+{
+  "scanned": 15,
+  "new": 15,
+  "unchanged": 0,
+  "total": 15,
+  "candidates_path": "~/.ai-wiki/import-candidates.json"
+}
+```
+
+此时候选清单全部是 `relevant: null / approved: false`，什么都还没判断。
+
+#### Step 3 — Agent 对每个候选做相关性判断
+
+Agent 会**逐条**读取文档内容（`lark-cli docs +fetch`），基于真实内容写 reason，而不是套模板：
+
+```bash
+ai-wiki import mark <token1> --relevant true  --reason "讲 Base 公式引擎增量计算，强相关"
+ai-wiki import mark <token2> --relevant false --reason "个人周报，跟 Base 引擎无关"
+ai-wiki import mark <token3> --relevant true  --reason "Base 存储层分片设计的技术报告"
+# ...
+```
+
+如果 Agent 写出"<标题>，相关"这种模板式 reason，说它没读内容，要求它 `lark-cli docs +fetch --as user --doc <token>` 重新判断。
+
+#### Step 4 — 查看 Agent 的判断结果
+
+```bash
+ai-wiki import list --pending
+# → 仍未判断的条目（应为空，Agent 应已全部打分）
+
+ai-wiki import list --all
+# → 看完整清单，重点看 relevant=true 的那些
+```
+
+此时可以**自己覆盖** Agent 的判断：
+
+```bash
+ai-wiki import mark <token> --relevant false --reason "用户手动排除"
+ai-wiki import reset <token>... --all   # 不满意全部判断？全部清空重来
+```
+
+#### Step 5 — Agent 一次性展示清单，你一次批准
+
+Agent **不会**一条一条问"这条要不要"，而是**一次性**把所有 `relevant=true` 的候选列给你（格式：`<序号>. <标题> — <reason>`），问：
+
+> "以上 N 条是否全部批准导入？"
+
+你的回复选项：
+
+- **"批准" / "同意" / "可以"** → 代表**全部批准**，Agent 跑 `approve --all-relevant`
+- **"除了 X、Y 都可以"** → Agent 先把 X、Y 的 `relevant` 改成 false，再批准剩下的
+- **"都不要"** → Agent 跑 `reset --all` 或单条 reject
+
+> 即使你说"批准"，真正搬运**仍需 Step 6、7 的二次确认**（`apply` 预览 + 你再说一次"确认"）—— 双保险防误操作。
+
+#### Step 6 — 预览（强制）
+
+```bash
+ai-wiki import apply
+```
+
+**不加 `--yes` 就是预览**。输出 `dry_run: true`，完全不动飞书。你会看到 "attempted: N, succeeded: 0, skipped: M" 的 summary，代表"如果真跑 N 条会搬过去"。
+
+#### Step 7 — 明确批准后真搬
+
+对 Agent 说："**确认，批准导入**" 或 "**同意**"。Agent 才能跑：
+
+```bash
+ai-wiki import apply --yes
+```
+
+输出（示例）：
+
+```json
+{
+  "attempted": 5,
+  "succeeded": 5,
+  "failed": 0,
+  "skipped": 10,
+  "dry_run": false,
+  "sync_error": null
+}
+```
+
+搬成功的条目会在候选 JSON 里获得 `imported_at` 时间戳 + `new_wiki_url`，下次 `apply` 自动 skip。
+
+#### Step 8 — 验证
+
+随便点开一个 `new_wiki_url`，确认它落在**技术库节点**下而不是 AI Wiki 里。
+
+### 常见问题
+
+| 症状 | 原因 / 处理 |
+|------|-------------|
+| Agent 给所有候选打同样的 reason（套模板）| 它没读文档内容。跑 `ai-wiki import reset --all`，要求它 `lark-cli docs +fetch` 每个 token 后再重判 |
+| `missing_scope` 报错 | 重跑 `ai-wiki setup` 或 `lark-cli auth login --scope "..."` |
+| 导入到了错的 wiki | 检查 `default-config.json` 的 `import.destination_node_token`，或你本地 `~/.feishu-config.json` 是否覆盖了 |
+| 错搬了文档想回滚 | 当前版本不支持自动回滚，在飞书 wiki UI 手动删除或移回云空间；候选 JSON 里那条会保留 `imported_at`，下次 `scan` 不会重新入库 |
+| scan 只看到第一页 | 飞书 API 对"我的空间"根目录原生限制。深层文件夹正常分页递归，深入子目录时给 Agent 贴具体 folder_token |
+
 ## CLI 参考
 
 ```bash
