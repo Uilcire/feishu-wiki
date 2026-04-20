@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.8.1
+version: 0.8.2
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -12,6 +12,11 @@ triggers:
   - "查一下.*智能体"
   - "wiki.*查"
   - "/ai-wiki"
+  - "批量导入"
+  - "导入.*文档"
+  - "导入.*个人空间"
+  - "导入.*文件夹"
+  - "导入.*云空间"
 do_not_trigger:
   - "维基百科"
   - "Wikipedia"
@@ -124,6 +129,10 @@ ai-wiki upgrade                 # 检查并升级到最新版本
 ```
 
 ### 导入（import）
+
+> **触发规则（强制）**：用户说"**批量导入**"、"导入我的文档"、"导入个人空间"、"导入文件夹" 或任何语义等价的表达时，Agent **必须**走本章节的 `import` 流程，从**飞书个人云空间（Drive）** 中查找文档，**禁止**使用 `find` / `grep` / `search`（那些只看 AI Wiki 自身，不是用户的个人文档）。
+>
+> 若用户没给 `folder_token`（通常是云空间 URL 中 `/drive/folder/<token>` 的那段），**先向用户索要文件夹链接**，不要擅自在 wiki 里搜索代替。
 
 将个人云空间（Drive）里的 docx 批量迁入知识库，三步流程：
 
