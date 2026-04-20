@@ -370,6 +370,44 @@ describe("patchCandidates", () => {
   });
 });
 
+describe("resetCandidates", () => {
+  afterEach(cleanup);
+
+  it("resets relevant/reason/approved but leaves imported_at alone", () => {
+    setup();
+    const p = path.join(tmpDir, "c.json");
+    fs.writeFileSync(p, JSON.stringify([
+      { token: "a", relevant: true, reason: "模板", approved: true, imported_at: null },
+      { token: "b", relevant: true, reason: "x", approved: true, imported_at: "2026-04-20T00:00:00Z", new_wiki_url: "u" },
+    ]));
+    const imp = loadImport({});
+    const affected = imp.resetCandidates(p, { all: true });
+    assert.deepStrictEqual(affected, ["a"]);
+    const saved = JSON.parse(fs.readFileSync(p, "utf-8"));
+    assert.strictEqual(saved[0].relevant, null);
+    assert.strictEqual(saved[0].reason, "");
+    assert.strictEqual(saved[0].approved, false);
+    // imported entry untouched
+    assert.strictEqual(saved[1].imported_at, "2026-04-20T00:00:00Z");
+    assert.strictEqual(saved[1].approved, true);
+  });
+
+  it("resets only named tokens", () => {
+    setup();
+    const p = path.join(tmpDir, "c.json");
+    fs.writeFileSync(p, JSON.stringify([
+      { token: "a", relevant: true, approved: true, imported_at: null },
+      { token: "b", relevant: true, approved: true, imported_at: null },
+    ]));
+    const imp = loadImport({});
+    const affected = imp.resetCandidates(p, { tokens: ["a"] });
+    assert.deepStrictEqual(affected, ["a"]);
+    const saved = JSON.parse(fs.readFileSync(p, "utf-8"));
+    assert.strictEqual(saved[0].relevant, null);
+    assert.strictEqual(saved[1].relevant, true);
+  });
+});
+
 describe("approveAllRelevant", () => {
   afterEach(cleanup);
 

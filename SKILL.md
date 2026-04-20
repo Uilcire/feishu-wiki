@@ -1,6 +1,6 @@
 ---
 name: ai-wiki
-version: 0.9.2
+version: 0.9.3
 description: "AI Wiki 协作知识库：收录来源、查询知识、维护交叉引用。"
 scope: global
 triggers:
@@ -136,9 +136,34 @@ ai-wiki upgrade                 # 检查并升级到最新版本
 
 ### 导入（import）
 
-> **触发规则（强制）**：用户说"**批量导入**"、"**批量录入**"、"**批量收录**"、"导入/录入我的文档"、"导入/录入个人空间"、"导入/录入文件夹" 或任何语义等价的表达时（**"录入" 与 "导入" 同义**），Agent **必须**走本章节的 `import` 流程，从**飞书个人云空间（Drive）** 中查找文档，**禁止**使用 `find` / `grep` / `search`（那些只看 AI Wiki 自身，不是用户的个人文档）。
+> **重要：双 wiki 模型**
 >
-> 若用户没给 `folder_token`（通常是云空间 URL 中 `/drive/folder/<token>` 的那段），**直接跑 `ai-wiki import scan`（不带参数）** —— 会扫描「我的空间」根目录（仅第一页，不含快捷方式）。需要深入某个子文件夹时再向用户索要链接。**禁止**改用 `find` / `grep` / `search` 代替。
+> 本系统维护**两个并存但独立**的知识库：
+> - **AI Wiki**（默认，本手册其余命令的目标）—— 主题：**AI / AI Agents**。`find` / `grep` / `search` / `create` / `update` / `delete` 全部作用于此。
+> - **技术库 / Large Base Engineering**（仅 `import` 用）—— 主题：**飞书多维表格（Base）的引擎架构、性能优化、存储设计、公式引擎、协同编辑 —— 与 Base 引擎实现相关的技术内容**。只有 `import apply` 会把文档搬进这里；其他任何命令都不碰。
+
+> **触发规则（强制）**：用户说"**批量导入**"、"**批量录入**"、"**批量收录**"、"导入/录入我的文档"、"导入/录入个人空间"、"导入/录入文件夹" 或任何语义等价的表达时（**"录入" 与 "导入" 同义**），Agent **必须**走本章节的 `import` 流程：从**飞书个人云空间（Drive）** 找源文档，搬入**技术库**（不是 AI Wiki）。**禁止**使用 `find` / `grep` / `search`（那些只查 AI Wiki）。
+>
+> 若用户没给 `folder_token`（通常是云空间 URL 中 `/drive/folder/<token>` 的那段），**直接跑 `ai-wiki import scan`（不带参数）** —— 会扫描「我的空间」根目录（仅第一页，不含快捷方式）。需要深入某个子文件夹时再向用户索要链接。
+
+> **相关性判断必须基于内容，禁止套模板（强制）**
+>
+> `import` 的相关性是"与 **Large Base Engineering** 主题是否相关"——**不是** AI / AI Agents。具体范围见上方"双 wiki 模型"。
+>
+> Agent 在 `mark <token>` 之前**必须**先读过文档的真实内容（至少标题 + 首节）。推荐命令：
+> ```bash
+> lark-cli docs +fetch --as user --doc <token>   # 拉 Markdown 正文
+> ```
+> 然后写出**基于真实内容**的 `--reason`，指明"这篇讲了 Base 引擎的什么"或"这篇跟 Base 工程无关（它是 X 主题）"。
+>
+> **禁止的模板理由示例**（会被视为未做判断）：
+> - `"<标题>，与 AI/AI Agents 相关的内容"` ❌
+> - `"<标题>，相关"` ❌
+> - 任何对所有候选套同一模板的 reason ❌
+>
+> **合格理由示例**：
+> - `"论文讨论 Base 公式引擎的增量计算，与 Base 引擎架构强相关"` ✅
+> - `"AI 前沿分享，讲 Claude Code 架构，跟 Base 无关 —— 应收录进 AI Wiki 而非技术库"` ✅
 
 将个人云空间（Drive）里的 docx 批量迁入知识库：
 
@@ -151,6 +176,7 @@ ai-wiki import list --pending|--approved|--imported|--all
 ai-wiki import mark <token> --relevant true|false [--reason R]
 ai-wiki import approve <token>... | --all-relevant
 ai-wiki import reject <token>...
+ai-wiki import reset <token>... | --all          # 重置判断字段回 pending（已导入条目不动）
 ai-wiki import apply [--dry-run]                 # 将 approved 条目搬入 wiki（需写模式）
 ```
 

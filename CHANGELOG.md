@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.3 (2026-04-20)
+
+### 重大改进 — 双 wiki 模型明确化
+
+- **SKILL.md 双 wiki 模型**：明确 `import` 目标是**技术库（Large Base Engineering）** —— 主题为"飞书多维表格（Base）的引擎架构、性能优化、存储设计、公式引擎、协同编辑"。其余所有命令（find/grep/search/create/update/delete）作用于 AI Wiki，两库独立并存。
+- **禁止套模板相关性理由**：SKILL 明确要求 Agent `mark` 之前先 `lark-cli docs +fetch` 拉文档内容，reason 必须基于真实内容（过往"<标题>，与 AI/AI Agents 相关的内容"这种模板判定被列为违规示例）。
+- **新增 `ai-wiki import reset <token>... | --all`**：清掉候选的 relevant/reason/approved 回 pending，允许基于新主题重新判断；已导入条目不动，避免重复搬运。
+
 ## 0.9.2 (2026-04-20)
 
 ### 修复
