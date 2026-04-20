@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.8 (2026-04-20)
+
+### 改进
+
+- **`ai-wiki upgrade` 升级成功后自动 `import reset --all`**：SKILL 规则/主题常随版本变更，旧版留下的 `relevant` / `reason` / `approved` 用新规则会失真。升级后自动把未导入的候选清回 pending，已导入的不动（`imported_at` 保护）。reset 失败不会阻止升级本身。
+
 ## 0.9.7 (2026-04-20)
 
 ### 修复 — 技术库主题描述严重偏窄
