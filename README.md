@@ -59,6 +59,37 @@ Codex 沙箱默认拦截出站请求，需在 allowedUrls 中添加：
 
 > **提示：** 请求中需要主动提及"ai-wiki skill"，Agent 才会加载知识库操作能力。加载后即可自动调用 `ai-wiki` CLI，你不需要写代码。
 
+## 批量导入（import）
+
+把飞书**个人云空间（Drive）** 里的 docx 批量迁入 **另一个** 知识库——默认是"技术库 / Large Base Engineering"（Base 引擎相关技术内容）。和 AI Wiki **并存但独立**，`find` / `create` / `update` 等命令完全不会碰技术库，反过来 `import` 也只影响技术库。
+
+触发：对 Agent 说 "批量导入 / 批量录入 / 批量收录 / 导入我的文档 / 录入个人空间" 等。
+
+流程（Agent 自动走完前 4 步，`apply --yes` 必须你明确批准）：
+
+```bash
+ai-wiki import scan                              # 1. 扫描"我的空间"根（不带参数即可）
+ai-wiki import list --pending                    # 2. 查看待判断候选
+# 3. Agent 逐条 lark-cli docs +fetch 读内容，再 mark --relevant 做判断（必须基于真实内容）
+ai-wiki import mark <token> --relevant true --reason "..."
+ai-wiki import mark <token> --relevant false --reason "..."
+ai-wiki import approve --all-relevant            # 4. 批准 relevant=true 的候选
+ai-wiki import apply                              # 5. 默认预览，不动数据
+ai-wiki import apply --yes                        # 6. 必须用户明确批准后才执行真正搬运
+ai-wiki import reset <token>... | --all           # 清除判断回 pending，重新判断
+```
+
+**双保险：**
+1. `apply` 不带 `--yes` 只会预览，绝不动飞书
+2. SKILL 规则明文禁止 Agent 在用户未明确同意时自加 `--yes`
+
+首次使用需把以下 scope 加入 lark-cli 登录：
+
+```bash
+lark-cli auth login --scope "drive:drive drive:drive:readonly space:document:retrieve wiki:wiki wiki:node:move"
+```
+（`ai-wiki setup` 会自动申请。）
+
 ## CLI 参考
 
 ```bash
