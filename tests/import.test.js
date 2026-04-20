@@ -354,17 +354,22 @@ describe("import CLI smoke", () => {
     }
   });
 
-  it("`import scan` without folder_token exits 1", () => {
+  it("`import scan` without folder_token scans My Space root", () => {
     setup();
-    const { main, captured, restore } = setupCmdMocks({
+    const scanCalls = [];
+    const { main, restore } = setupCmdMocks({
       loadCandidates: () => [],
       saveCandidates: () => {},
       mergeCandidates: (a, b) => b,
-      scanDriveFolder: () => [],
+      scanDriveFolder: (token) => {
+        scanCalls.push(token);
+        return [];
+      },
     });
     try {
-      assert.throws(() => main(["import", "scan"]), /EXIT_1/);
-      assert.ok(captured.errors.some((e) => e.includes("用法")));
+      main(["import", "scan"]);
+      assert.strictEqual(scanCalls.length, 1);
+      assert.strictEqual(scanCalls[0], "");
     } finally {
       restore();
     }
